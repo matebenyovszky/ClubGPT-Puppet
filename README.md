@@ -237,3 +237,43 @@ További eszközök ugyanebben a formában:
 - AI Gateway skeleton (Node + WS) létrehozása, tool proxyval.
 - Modellkapcsolatok: GPT‑5 Realtime, majd Grok 4 voice.
 - Telemetria: parancs latency, sikerességi arány, tween queue méret.
+
+## 7. Memória (bevásárló kosár) funkció
+
+- **Mi ez?** Egy egyszerű kliens oldali „memória” lista, amelyben a fontos dolgokat (pl. preferenciák, felidézendő tények, vagy vásárlási szándékok) tároljuk. A rendszer a „tedd a kosárba” (HU) kifejezést automatikusan elkapja és menti.
+
+- **Hol látszik?** A képernyő bal alsó sarkában megjelenik egy doboz, amely listázza az aktuális elemeket: `date`, `ID`, `weight`, `text`.
+
+- **Adatséma:**
+  - `date`: mentés időpontja (epoch ms, automatikus)
+  - `id`: növekvő egész azonosító
+  - `weight`: szám (fontosság)
+  - `text`: a mentett szöveg
+
+- **Tárolás:** `localStorage` (kliens oldalon). Kulcs: `clubgpt.memory`.
+
+- **Fejlesztői API (konzol):**
+```javascript
+// Lista lekérése
+memory.list()
+// Új elem hozzáadása
+memory.add('piros alma', 2)
+// Elem frissítése
+memory.update(1, { weight: 3, text: 'zöld alma' })
+// Elem törlése
+memory.remove(1)
+```
+
+- **AI eszközök (toolok):**
+  - `memory_add({ text, weight? })`
+  - `memory_update({ id, text?, weight? })`
+  - `memory_delete({ id })`
+  - `memory_list({})`
+
+- **Proaktív mentés:**
+  - Az AI proaktívan is menthet „fontos” infókat (pl. preferenciák, kérések, ígéretek) `memory_add` hívással.
+  - A „tedd a kosárba” kifejezést az ASR és a szöveges inputok is automatikusan detektálják és mentik.
+
+- **Személyiség:**
+  - Az AI stílusa cuki, kedves és bájos; rövid, lényegre törő válaszokkal.
+

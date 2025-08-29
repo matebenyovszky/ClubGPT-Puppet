@@ -4,6 +4,7 @@ import { GridMaterial } from "@babylonjs/materials";
 
 import { AvatarController } from "./avatarController";
 import { startRealtime, setRealtimeDebug } from "./realtimeClient";
+import { initMemoryUI } from "./memory";
 
 // Define a global interface for the Puppet API
 declare global {
@@ -132,6 +133,8 @@ class App {
         this.setupScene();
         await this.loadAvatar();
         this.exposeApi();
+        // Initialize memory UI box
+        try { initMemoryUI(); } catch (err) { console.warn('Memory UI init failed:', err); }
         // Touch refs for TS so strict unused checks don't explode in prod
         try { console.debug('App refs ready', { backdrop: !!this.backdrop, avatarRoot: !!this.avatarContainer }); } catch {}
         // Auto-start realtime voice session (no UI button)

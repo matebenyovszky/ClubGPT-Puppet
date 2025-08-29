@@ -8,14 +8,14 @@ export async function onRequestPost(context: { request: Request; env: Record<str
     // Match the dev-time Vite middleware configuration for parity
     const instructions = [
       // Role & language
-      "ROLE: On-screen avatar assistant. Always reply briefly in the user's language (detect automatically).",
+      "ROLE: On-screen avatar assistant. Always reply briefly in the user's language (detect automatically). Be very cute, warm, and charming; keep tone friendly and delightful while staying concise.",
       "IMPORTANT: When a request affects pose, motion, materials, or position, use TOOLS to act; narration is optional and short.",
 
       // Awareness & bootstrapping
       'AWARENESS: You must know all capabilities at all times. On the FIRST TURN call get_scene_info to cache bones, animations, and mesh names. Re-call it whenever unsure.',
 
       // Tools
-      "TOOLS: perform_action (play animation), rotate_bone_to (tween Euler degrees), move_root_to (tween position), set_material_color (mesh color), stop_tweens, stop_all, look_at, get_scene_info.",
+      "TOOLS: perform_action (play animation), rotate_bone_to (tween Euler degrees), move_root_to (tween position), set_material_color (mesh color), stop_tweens, stop_all, look_at, get_scene_info, memory_add, memory_update, memory_delete, memory_list.",
 
       // Concurrency & scheduling
       "CONCURRENCY: You can issue multiple motions concurrently by calling rotate_bone_to for different bones (and/or perform_action + move_root_to). Overlap actions by setting durations; do NOT wait for one to finish before starting another unless requested.",
@@ -34,6 +34,10 @@ export async function onRequestPost(context: { request: Request; env: Record<str
 
       // Language and mapping hints
       'LANGUAGE: Understand any language. Map left/right synonyms (en: left/right; hu: bal/jobb; de: links/rechts; es: izquierda/derecha; fr: gauche/droite).',
+
+      // Memory policy
+      'MEMORY: Proactively save important user details to memory_add with a reasonable weight: preferences (colors, styles, likes), explicit requests to remember, commitments, todo-like items, and shopping intents. Always comply with explicit memory commands (add/update/delete). Keep entries short and meaningful.',
+      'SHOPPING: If the user says "tedd a kosárba" (Hungarian for "add to cart"), save the utterance to memory immediately using memory_add.',
 
       // Recipes
       "HAND/ARM RAISING RULES: In Babylon.js, to raise hands UP (towards sky), use NEGATIVE X rotation for arms. Positive X rotation moves arms backward/down.",
@@ -155,6 +159,39 @@ export async function onRequestPost(context: { request: Request; env: Record<str
       },
       { type: 'function', name: 'stop_tweens', description: 'Stop all ongoing tweens/motions.', parameters: { type: 'object', properties: {} } },
       { type: 'function', name: 'stop_all', description: 'Stop and reset all animations.', parameters: { type: 'object', properties: {} } },
+      // Memory tools
+      {
+        type: 'function',
+        name: 'memory_add',
+        description: 'Add a memory item to the on-screen memory list (shopping cart).',
+        parameters: {
+          type: 'object',
+          properties: { text: { type: 'string' }, weight: { type: 'number' } },
+          required: ['text']
+        }
+      },
+      {
+        type: 'function',
+        name: 'memory_update',
+        description: 'Update a memory item by ID.',
+        parameters: {
+          type: 'object',
+          properties: { id: { type: 'number' }, text: { type: 'string' }, weight: { type: 'number' } },
+          required: ['id']
+        }
+      },
+      {
+        type: 'function',
+        name: 'memory_delete',
+        description: 'Delete a memory item by ID.',
+        parameters: { type: 'object', properties: { id: { type: 'number' } }, required: ['id'] }
+      },
+      {
+        type: 'function',
+        name: 'memory_list',
+        description: 'List all memory items currently stored.',
+        parameters: { type: 'object', properties: {} }
+      },
       {
         type: 'function',
         name: 'look_at',

@@ -30,6 +30,9 @@ let debugInputBound = false;
 
 const pendingToolCalls = new Map<string, { name: string; args: string; itemId?: string }>();
 
+// Memory helpers
+import { addMemory, updateMemory, deleteMemory, listMemory, captureBasketFromText, captureMemoryFromText } from './memory';
+
 // === LipSync configuration (viseme mapping & timing) ===
 const lipVisemeMap: Record<string, { open: number; wide: number; round: number }> = {
     // approximations for Latin scripts (can extend per language later)
@@ -177,6 +180,8 @@ function debugLog(message: string, opt?: StartOptions) {
     // Trim lines
     while (feed.childNodes.length > 200) feed.removeChild(feed.firstChild!);
     feed.scrollTop = feed.scrollHeight;
+    // Mirror to console for easier debugging
+    console.log(`[rt-debug] ${message}`);
 }
 
 function updateMicLevel(level: number, opt?: StartOptions) {
@@ -203,6 +208,8 @@ async function getEphemeralSession(): Promise<{ token: string; model: string; vo
 
 function mapToolToPuppet(name: string, args: any, opt?: StartOptions): any {
     try {
+        // Log every tool execution attempt
+        try { console.log('[tool:exec]', name, args); } catch {}
         switch (name) {
             case 'get_safe_ranges': {
                 // Conservative defaults; can be refined per model
@@ -333,12 +340,42 @@ function mapToolToPuppet(name: string, args: any, opt?: StartOptions): any {
                 debugLog(`tool look_at → (${targetX},${targetY},${targetZ}) bone=${boneHint ?? 'Head'}`, opt);
                 return { ok: true };
             }
+            // --- Memory tools ---
+            case 'memory_add': {
+                const text = String(args?.text ?? '');
+                const weight = args?.weight != null ? Number(args.weight) : 1;
+                const item = addMemory(text, weight);
+                debugLog(`tool memory_add → #${item.id} w=${item.weight} ${text}`, opt);
+                return { ok: true, result: item };
+            }
+            case 'memory_update': {
+                const id = Number(args?.id);
+                if (!Number.isFinite(id)) return { ok: false, error: 'id required' };
+                const next = updateMemory(id, { text: args?.text, weight: args?.weight });
+                if (!next) return { ok: false, error: 'not found' };
+                debugLog(`tool memory_update → #${id}`, opt);
+                return { ok: true, result: next };
+            }
+            case 'memory_delete': {
+                const id = Number(args?.id);
+                if (!Number.isFinite(id)) return { ok: false, error: 'id required' };
+                const ok = deleteMemory(id);
+                debugLog(`tool memory_delete → #${id} ${ok ? 'deleted' : 'not-found'}`, opt);
+                return { ok };
+            }
+            case 'memory_list': {
+                const items = listMemory();
+                debugLog(`tool memory_list → ${items.length} items`, opt);
+                return { ok: true, result: items };
+            }
             default:
                 debugLog(`tool UNKNOWN: ${name}`, opt);
+                try { console.warn('[tool:unknown]', name, args); } catch {}
                 return { ok: false, error: `Unknown tool: ${name}` };
         }
     } catch (err: any) {
         debugLog(`tool ${name} ERROR: ${String(err?.message || err)}`, opt);
+        try { console.error('[tool:error]', name, args, err); } catch {}
         return { ok: false, error: String(err?.message || err) };
     }
 }
@@ -360,6 +397,9 @@ function setupDebugInputHandlers(opt?: StartOptions) {
     const handler = () => {
         const text = (input.value || '').trim();
         if (!text) return;
+        // Auto-capture Hungarian cart phrase and general memory intents
+        try { captureBasketFromText(text); } catch {}
+        try { captureMemoryFromText(text); } catch {}
         sendTextToModel(text, opt);
         input.value = '';
     };
@@ -407,6 +447,10 @@ function handleServerEvent(ev: AnyEvent, opt?: StartOptions) {
         case 'conversation.item.input_audio_transcription.completed': {
             const tx = ev?.transcript ?? ev?.text ?? '';
             if (tx) debugLog(`ASR ✔ ${tx}`, opt);
+            // Auto-capture Hungarian cart phrase from ASR
+            try { captureBasketFromText(tx); } catch {}
+            // Auto-capture general memory intents from ASR
+            try { captureMemoryFromText(tx); } catch {}
             break;
         }
         case 'response.audio_transcript.delta': {
@@ -437,6 +481,7 @@ function handleServerEvent(ev: AnyEvent, opt?: StartOptions) {
                 if (callId) {
                     pendingToolCalls.set(callId, { name, args: '', itemId: item?.id });
                     debugLog(`FCALL ${name} (${callId})`, opt);
+                    try { console.log('[tool:call-start]', name, callId); } catch {}
                 }
             }
             break;
@@ -458,9 +503,11 @@ function handleServerEvent(ev: AnyEvent, opt?: StartOptions) {
             let argsObj: any = {};
             try { argsObj = finalArgs ? JSON.parse(finalArgs) : {}; } catch {}
             debugLog(`FCALL ✔ ${name} args=${finalArgs || '{}'} (${callId})`, opt);
+            try { console.log('[tool:call-args]', name, callId, argsObj); } catch {}
 
             // Execute locally
             const result = mapToolToPuppet(name, argsObj, opt);
+            try { console.log('[tool:call-result]', name, callId, result); } catch {}
 
             // Send tool output back so the model can continue
             if (callId) {
