@@ -20,6 +20,9 @@ const defaultOptions: Required<StartOptions> = {
     enableLipSync: false,
 };
 
+let currentMode: 'sound' | 'text' = 'sound';
+export function setRealtimeMode(mode: 'sound' | 'text') { currentMode = mode; }
+
 let pc: RTCPeerConnection | null = null;
 let dc: RTCDataChannel | null = null;
 let remoteAudioEl: HTMLAudioElement | null = null;
@@ -86,6 +89,28 @@ let outAnalyser: AnalyserNode | null = null;
 let outLevelLoop: number | null = null;
 let outEnv = 0; // smoothed amplitude 0..1
 let lipSyncEnabled = false; // runtime flag
+let reconnecting = false;
+let reconnectAttempts = 0;
+let lastStartOptions: StartOptions | undefined;
+
+async function scheduleReconnect(why: string, opt?: StartOptions) {
+    if (currentMode === 'text') return; // In text mode we intentionally don't open WebRTC
+    if (reconnecting) return;
+    reconnecting = true;
+    const backoffMs = Math.min(2000, 300 * Math.pow(2, reconnectAttempts));
+    reconnectAttempts = Math.min(reconnectAttempts + 1, 5);
+    debugLog(`reconnect scheduled in ${backoffMs}ms (${why})`, opt);
+    try { await new Promise(r => setTimeout(r, backoffMs)); } catch {}
+    try {
+        stopRealtime();
+        await startRealtime(lastStartOptions);
+        debugLog('reconnect attempt done', opt);
+    } catch (err: any) {
+        debugLog(`reconnect failed: ${String(err?.message || err)}`, opt);
+    } finally {
+        reconnecting = false;
+    }
+}
 
 function isDebugEnabled(opt?: StartOptions): boolean {
     if (opt && typeof opt.debug === 'boolean') return opt.debug;
@@ -201,7 +226,7 @@ async function getEphemeralSession(): Promise<{ token: string; model: string; vo
     const json = await res.json();
     const token: string | undefined = json?.client_secret?.value;
     if (!token) throw new Error('No client_secret.value in session response');
-    const model: string = json?.model || 'gpt-4o-realtime-preview';
+    const model: string = json?.model || 'gpt-realtime';
     const voice: string | undefined = json?.voice;
     return { token, model, voice };
 }
@@ -388,21 +413,45 @@ function sendEvent(ev: AnyEvent) {
 }
 
 function setupDebugInputHandlers(opt?: StartOptions) {
-    if (!isDebugEnabled(opt)) return;
+    if (!isDebugEnabled(opt) && currentMode !== 'text') return;
     if (debugInputBound) return;
     const root = ensureDebugOverlay();
     const input = root.querySelector('#realtimeDebugInput') as HTMLInputElement | null;
     const sendBtn = root.querySelector('#realtimeDebugSend') as HTMLButtonElement | null;
     if (!input || !sendBtn) return;
-    const handler = () => {
+
+    const handler = async () => {
         const text = (input.value || '').trim();
         if (!text) return;
+
         // Auto-capture Hungarian cart phrase and general memory intents
         try { captureBasketFromText(text); } catch {}
         try { captureMemoryFromText(text); } catch {}
-        sendTextToModel(text, opt);
+
+        try {
+            if (currentMode === 'text') {
+                // Use text chat client
+                const { sendTextMessage, isCurrentlyProcessing } = await import('./textChatClient');
+                if (isCurrentlyProcessing()) {
+                    debugLog('Already processing a message...', opt);
+                    return;
+                }
+                debugLog(`USER » ${text}`, opt);
+                const response = await sendTextMessage(text);
+                if (response) {
+                    debugLog(`AI » ${response}`, opt);
+                }
+            } else {
+                // Use realtime API
+                sendTextToModel(text, opt);
+            }
+        } catch (err: any) {
+            debugLog(`Message send failed: ${err.message}`, opt);
+        }
+
         input.value = '';
     };
+
     input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') handler();
     });
@@ -412,7 +461,18 @@ function setupDebugInputHandlers(opt?: StartOptions) {
 
 function sendTextToModel(text: string, opt?: StartOptions) {
     if (!dc || dc.readyState !== 'open') {
-        debugLog(`TXT send failed: datachannel not open`, opt);
+        debugLog(`TXT fallback: datachannel not open → using /api/chat`, opt);
+        scheduleReconnect('sendTextToModel', opt);
+        // Fallback to text chat completions
+        (async () => {
+            try {
+                const { sendTextMessage } = await import('./textChatClient');
+                const reply = await sendTextMessage(text);
+                if (reply) debugLog(`AI » ${reply}`, opt);
+            } catch (err: any) {
+                debugLog(`TXT fallback ERROR: ${String(err?.message || err)}`, opt);
+            }
+        })();
         return;
     }
     debugLog(`USER » ${text}`, opt);
@@ -426,7 +486,7 @@ function sendTextToModel(text: string, opt?: StartOptions) {
     });
     sendEvent({
         type: 'response.create',
-        response: { modalities: ['audio', 'text'] }
+        response: { modalities: (currentMode === 'sound') ? ['audio', 'text'] : ['text'] }
     });
 }
 
@@ -439,8 +499,9 @@ function handleServerEvent(ev: AnyEvent, opt?: StartOptions) {
             debugLog('session.created', opt);
             break;
         case 'conversation.item.input_audio_transcription.delta': {
-            const text = ev?.delta ?? '';
-            if (text) debugLog(`ASR Δ ${text}`, opt);
+            // ASR delta text - not displayed to avoid cluttering the chat
+            // const text = ev?.delta ?? '';
+            // if (text) debugLog(`ASR Δ ${text}`, opt);
             break;
         }
         case 'conversation.item.input_audio_transcription.done':
@@ -519,11 +580,12 @@ function handleServerEvent(ev: AnyEvent, opt?: StartOptions) {
                         output: JSON.stringify(result)
                     }
                 });
-                // Ask model to continue
-                sendEvent({
-                    type: 'response.create',
-                    response: { modalities: ['audio', 'text'] }
-                });
+                // Ask model to continue (fallback to text-only if dc not open)
+                if (dc && dc.readyState === 'open') {
+                    sendEvent({ type: 'response.create', response: { modalities: (currentMode === 'sound') ? ['audio', 'text'] : ['text'] } });
+                } else {
+                    debugLog('response.create skipped (dc closed) — actions executed locally', opt);
+                }
                 pendingToolCalls.delete(callId);
             }
             break;
@@ -618,9 +680,9 @@ async function createPeerConnection(sessionToken: string, model: string, opt?: S
 
     // Data channel for JSON events
     dc = pc.createDataChannel('oai-events');
-    dc.onopen = () => debugLog('datachannel open', opt);
-    dc.onclose = () => debugLog('datachannel closed', opt);
-    dc.onerror = (e) => debugLog(`datachannel error ${String((e as any)?.message || e)}`, opt);
+    dc.onopen = () => { debugLog('datachannel open', opt); reconnectAttempts = 0; };
+    dc.onclose = () => { debugLog('datachannel closed', opt); scheduleReconnect('onclose', opt); };
+    dc.onerror = (e) => { debugLog(`datachannel error ${String((e as any)?.message || e)}`, opt); scheduleReconnect('onerror', opt); };
     dc.onmessage = (ev) => {
         try {
             const data = typeof ev.data === 'string' ? ev.data : '';
@@ -636,38 +698,41 @@ async function createPeerConnection(sessionToken: string, model: string, opt?: S
         }
     };
 
-    // Remote audio sink
-    remoteAudioEl = document.getElementById('oai-remote-audio') as HTMLAudioElement | null;
-    if (!remoteAudioEl) {
-        remoteAudioEl = document.createElement('audio');
-        remoteAudioEl.id = 'oai-remote-audio';
-        remoteAudioEl.autoplay = true;
-        (remoteAudioEl as any).playsInline = true;
-        remoteAudioEl.style.display = 'none';
-        document.body.appendChild(remoteAudioEl);
+    // Remote audio sink (sound mode only)
+    let remoteStream: MediaStream | null = null;
+    if (currentMode === 'sound') {
+        remoteAudioEl = document.getElementById('oai-remote-audio') as HTMLAudioElement | null;
+        if (!remoteAudioEl) {
+            remoteAudioEl = document.createElement('audio');
+            remoteAudioEl.id = 'oai-remote-audio';
+            remoteAudioEl.autoplay = true;
+            (remoteAudioEl as any).playsInline = true;
+            remoteAudioEl.style.display = 'none';
+            document.body.appendChild(remoteAudioEl);
+        }
+        remoteStream = new MediaStream();
+        remoteAudioEl.srcObject = remoteStream;
     }
-    const remoteStream = new MediaStream();
-    remoteAudioEl.srcObject = remoteStream;
     pc.ontrack = (event) => {
-        event.streams[0]?.getAudioTracks().forEach(() => {});
-        remoteStream.addTrack(event.track);
+        try { event.streams[0]?.getAudioTracks().forEach(() => {}); } catch {}
+        if (remoteStream) { remoteStream.addTrack(event.track); }
     };
 
-    // Attach analyser to remote audio for amplitude-based lipsync fallback
+    // Attach analyser to remote audio for amplitude-based lipsync fallback (sound mode only)
     try {
-        outCtx = outCtx || new (window.AudioContext || (window as any).webkitAudioContext)();
-        // Proactively resume the audio context to avoid being stuck in 'suspended'
-        const tryResume = (why: string) => {
-            try { outCtx?.resume(); debugLog(`outCtx.resume() → ${outCtx?.state} (${why})`, opt); } catch {}
-        };
-        if (outCtx.state === 'suspended') tryResume('init');
-        outCtx.onstatechange = () => debugLog(`outCtx state → ${outCtx?.state}`, opt);
-        // Resume on first interaction and when playback starts
-        document.addEventListener('pointerdown', () => tryResume('pointerdown'), { once: true });
-        document.addEventListener('keydown', () => tryResume('keydown'), { once: true });
-        remoteAudioEl.addEventListener('play', () => tryResume('remote play'));
+        if (currentMode === 'sound' && opt?.enableLipSync && remoteStream) {
+            outCtx = outCtx || new (window.AudioContext || (window as any).webkitAudioContext)();
+            // Proactively resume the audio context to avoid being stuck in 'suspended'
+            const tryResume = (why: string) => {
+                try { outCtx?.resume(); debugLog(`outCtx.resume() → ${outCtx?.state} (${why})`, opt); } catch {}
+            };
+            if (outCtx.state === 'suspended') tryResume('init');
+            outCtx.onstatechange = () => debugLog(`outCtx state → ${outCtx?.state}`, opt);
+            // Resume on first interaction and when playback starts
+            document.addEventListener('pointerdown', () => tryResume('pointerdown'), { once: true });
+            document.addEventListener('keydown', () => tryResume('keydown'), { once: true });
+            remoteAudioEl?.addEventListener('play', () => tryResume('remote play'));
 
-        if (opt?.enableLipSync) {
             const src = outCtx.createMediaStreamSource(remoteStream);
             outAnalyser = outCtx.createAnalyser();
             outAnalyser.fftSize = 1024;
@@ -675,21 +740,16 @@ async function createPeerConnection(sessionToken: string, model: string, opt?: S
             const buf = new Uint8Array(outAnalyser.fftSize);
             const loop = () => {
                 if (!outAnalyser) return;
-                // Keep nudging the context in case the browser re-suspends on silence
                 if (outCtx && outCtx.state === 'suspended') tryResume('meter loop');
                 outAnalyser.getByteTimeDomainData(buf);
-                // peak-to-peak
                 let min = 255, max = 0;
                 for (let i = 0; i < buf.length; i++) { const v = buf[i]; if (v < min) min = v; if (v > max) max = v; }
                 const amp = (max - min) / 255; // 0..1
-                // Exponential smoothing to avoid jitter
                 const alpha = 0.35;
                 outEnv = outEnv * (1 - alpha) + amp * alpha;
-                // Map amplitude to an open/round pair; width reacts less
                 const open = Math.min(1.2, Math.max(0.02, (outEnv - 0.02) * 2.8));
                 const round = Math.max(0.0, Math.min(0.9, outEnv * 0.6));
                 const wide = Math.max(0.0, 0.3 - outEnv * 0.25);
-                // Drive quickly if amplitude changes fast
                 applyViseme({ open, wide, round }, 24);
                 outLevelLoop = requestAnimationFrame(loop);
             };
@@ -698,25 +758,56 @@ async function createPeerConnection(sessionToken: string, model: string, opt?: S
         }
     } catch {}
 
-    // Mic source
-    micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
-    micStream.getAudioTracks().forEach((t) => pc!.addTrack(t, micStream!));
-    startMicLevelMeter(micStream, opt);
+    // Mic source (sound mode only)
+    if (currentMode === 'sound') {
+        try {
+            // Check and log permission status before asking
+            if (navigator.permissions && typeof navigator.permissions.query === 'function') {
+                try {
+                    const permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+                    debugLog(`mic permission state: ${permissionStatus.state}`, opt);
+                    permissionStatus.onchange = () => debugLog(`mic permission state changed to: ${permissionStatus.state}`, opt);
+                } catch (e) { debugLog('mic permission query failed', opt); }
+            }
+            micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
+            micStream.getAudioTracks().forEach((t) => pc!.addTrack(t, micStream!));
+            startMicLevelMeter(micStream, opt);
+        } catch (err: any) {
+            debugLog(`mic unavailable → continuing without mic (${String(err?.name || err)})`, opt);
+        }
+    }
 
-    const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false } as any);
+    const offer = await pc.createOffer({ offerToReceiveAudio: currentMode === 'sound', offerToReceiveVideo: false } as any);
     await pc.setLocalDescription(offer);
     await waitForIceGatheringComplete(pc);
 
-    const baseUrl = `https://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`;
-    const sdpResponse = await fetch(baseUrl, {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${sessionToken}`,
-            'Content-Type': 'application/sdp'
-        },
-        body: pc.localDescription?.sdp || ''
-    });
-    const answer = await sdpResponse.text();
+    const modelsToTry = Array.from(new Set([model, 'gpt-4o-realtime-preview']));
+    let answer: string | null = null;
+    for (const m of modelsToTry) {
+        const url = `https://api.openai.com/v1/realtime?model=${encodeURIComponent(m)}`;
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${sessionToken}`,
+                'Content-Type': 'application/sdp',
+                'Accept': 'application/sdp',
+                'OpenAI-Beta': 'realtime=v1'
+            },
+            body: pc.localDescription?.sdp || ''
+        });
+        const text = await resp.text();
+        if (resp.ok && /^v=/m.test(text)) {
+            answer = text;
+            if (m !== model) debugLog(`webrtc: fell back to model ${m}`, opt);
+            break;
+        } else {
+            const bodyText = text.length > 300 ? `${text.slice(0, 300)}...` : text;
+            debugLog(`webrtc SDP fetch failed for model=${m} status=${resp.status} body=${bodyText}`, opt);
+        }
+    }
+    if (!answer) {
+        throw new Error(`Expect line: v=`);
+    }
     await pc.setRemoteDescription({ type: 'answer', sdp: answer });
     debugLog('webrtc connected', opt);
 
@@ -740,8 +831,21 @@ function waitForIceGatheringComplete(conn: RTCPeerConnection): Promise<void> {
 export async function startRealtime(options?: StartOptions) {
     const opt: StartOptions = { ...defaultOptions, ...options };
     try {
+        lastStartOptions = opt;
         lipSyncEnabled = !!opt.enableLipSync;
-        if (isDebugEnabled(opt)) { ensureDebugOverlay(); setupDebugInputHandlers(opt); }
+        // Always show debug overlay in text mode or when debug is enabled
+        if (isDebugEnabled(opt) || currentMode === 'text') {
+            ensureDebugOverlay();
+            setupDebugInputHandlers(opt);
+        }
+
+        if (currentMode === 'text') {
+            // Text mode: no WebRTC, just setup for text chat
+            debugLog('text mode enabled - no realtime session', opt);
+            return;
+        }
+
+        // Sound mode: setup WebRTC realtime session
         const { token, model } = await getEphemeralSession();
         await createPeerConnection(token, model, opt);
         debugLog('realtime session started', opt);

@@ -10,6 +10,7 @@ export async function onRequestPost(context: { request: Request; env: Record<str
       // Role & language
       "ROLE: On-screen avatar assistant. Always reply briefly in the user's language (detect automatically). Be very cute, warm, and charming; keep tone friendly and delightful while staying concise.",
       "IMPORTANT: When a request affects pose, motion, materials, or position, use TOOLS to act; narration is optional and short.",
+      "VOICE BEHAVIOR: In voice mode, NEVER give feedback about tool calls or actions being executed. Just perform the requested actions silently and respond naturally to the user.",
 
       // Awareness & bootstrapping
       'AWARENESS: You must know all capabilities at all times. On the FIRST TURN call get_scene_info to cache bones, animations, and mesh names. Re-call it whenever unsure.',
@@ -36,7 +37,7 @@ export async function onRequestPost(context: { request: Request; env: Record<str
       'LANGUAGE: Understand any language. Map left/right synonyms (en: left/right; hu: bal/jobb; de: links/rechts; es: izquierda/derecha; fr: gauche/droite).',
 
       // Memory policy
-      'MEMORY: Proactively save important user details to memory_add with a reasonable weight: preferences (colors, styles, likes), explicit requests to remember, commitments, todo-like items, and shopping intents. Always comply with explicit memory commands (add/update/delete). Keep entries short and meaningful.',
+      'MEMORY: AUTOMATICALLY save important user details to memory_add with a reasonable weight: preferences (colors, styles, likes), explicit requests to remember, commitments, todo-like items, and shopping intents. Always comply with explicit memory commands (add/update/delete). Keep entries short and meaningful. Memorize client information automatically without announcing it.',
       'SHOPPING: If the user says "tedd a kosárba" (Hungarian for "add to cart"), save the utterance to memory immediately using memory_add.',
 
       // Recipes
@@ -62,7 +63,7 @@ export async function onRequestPost(context: { request: Request; env: Record<str
       'MATERIAL COLORS: Example meshes include F010_Saber_Hair.001, Saber_maid_dress, F010_Saber_Body, F010_Saber_Face. Use hex colors (#RRGGBB).',
 
       // Output policy
-      "OUTPUT POLICY: Keep spoken/text responses short. Action changes must be executed via tools. Use multiple tool calls per turn to achieve simultaneous motions."
+      "OUTPUT POLICY: Keep ALL responses extremely short and concise. In voice mode, respond naturally but briefly without mentioning tool executions. Action changes must be executed via tools. First you can ask for current status silently, thans use multiple tool calls per turn to achieve simultaneous motions."
     ].join('\n');
 
     const toolSchemas = [
@@ -209,11 +210,16 @@ export async function onRequestPost(context: { request: Request; env: Record<str
       }
     ];
 
+    const modeRaw = String(context.env.MODE || '').toLowerCase();
+    const modalities = (modeRaw === 'text' ? ['text'] : ['audio', 'text']) as ('audio' | 'text')[];
+    const model = context.env.REALTIME_MODEL || 'gpt-realtime';
+    const voice = context.env.REALTIME_VOICE || 'marin';
+
     const body = {
-      model: 'gpt-4o-realtime-preview',
-      modalities: ['audio', 'text'],
+      model,
+      modalities,
       instructions,
-      voice: 'sage',
+      voice,
       input_audio_format: 'pcm16',
       output_audio_format: 'pcm16',
       input_audio_transcription: { model: 'gpt-4o-transcribe', language: 'hu' },
@@ -226,18 +232,33 @@ export async function onRequestPost(context: { request: Request; env: Record<str
       tracing: 'auto'
     } as const;
 
-    const upstream = await fetch('https://api.openai.com/v1/realtime/sessions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(body)
-    });
+    async function createSession(reqBody: any): Promise<Response> {
+      return fetch('https://api.openai.com/v1/realtime/sessions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'OpenAI-Beta': 'realtime=v1'
+        },
+        body: JSON.stringify(reqBody)
+      });
+    }
 
+    let upstream = await createSession(body);
     if (!upstream.ok) {
-      const text = await upstream.text();
-      return new Response(text, { status: upstream.status });
+      // Fallback to known working preview model if "gpt-realtime" is unavailable
+      try {
+        const errText = await upstream.text();
+        const fallbackBody = { ...body, model: 'gpt-4o-realtime-preview' } as const;
+        upstream = await createSession(fallbackBody);
+        if (!upstream.ok) {
+          const text2 = await upstream.text();
+          return new Response(text2 || errText, { status: upstream.status });
+        }
+      } catch (_) {
+        // If fallback attempt throws, bubble original error up
+        return new Response('Realtime session creation failed', { status: 500 });
+      }
     }
 
     const json = await upstream.json();

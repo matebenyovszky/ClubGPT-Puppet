@@ -1,189 +1,187 @@
-# Puppet - AI-vezérelt Avatár Projekt
+# Puppet - AI‑Driven Avatar Project
 
-## 1. Célkitűzés (Goal)
+## 1. Goal
 
-A projekt célja egy web-alapú, reszponzív 3D-s alkalmazás létrehozása, amelyben egy humanoid avatárt egy Nagy Nyelvi Modell (LLM) képes irányítani egy egyszerű, magas szintű API-n keresztül. Az LLM képes legyen az avatár kinézetét (ruházat, színek) és mozgását (animációk, egyedi pózok) is dinamikusan változtatni.
+Build a web‑based, responsive 3D experience where a humanoid avatar is controlled by a Large Language Model (LLM) through a simple, high‑level API. The LLM can dynamically change the avatar’s look (materials/colors) and motion (animations, custom poses).
 
-## 2. Alapelvek (Core Principles)
+## 2. Core Principles
 
-- **AI-First Design:** A kódot, a változóneveket és az API-kat úgy alakítjuk ki, hogy egy mesterséges intelligencia számára a lehető legkönnyebben értelmezhető és használható legyen.
-- **Modularitás:** A fő funkciókat (jelenetkezelés, avatárvezérlés) különálló, tiszta interfésszel rendelkező modulokba szervezzük.
-- **Keretrendszer:** [Babylon.js](https://www.babylonjs.com/) 3D motort használjuk a fejlett grafikai és fizikai képességei miatt.
+- **AI‑First Design**: APIs, naming, and structure are designed to be easy for an AI to use and reason about.
+- **Modularity**: Scene management and avatar control are split into clean, focused modules.
+- **Engine**: We use [Babylon.js](https://www.babylonjs.com/) for its powerful graphics and tooling.
 
-## 3. Projekt Struktúra (`/src`)
+## 3. Project Structure (`/src`)
 
-- `main.ts`: Az alkalmazás belépési pontja. Inicializálja az `App` osztályt.
-- `app.ts`: A központi alkalmazás osztály. Felelős a Babylon.js motor, a jelenet létrehozásáért és az `AvatarController` példányosításáért. Itt található a `window.puppet` API "kihelyezése" is.
-- `avatarController.ts`: A projekt lelke. Ez az osztály absztrahálja a Babylon.js-specifikus hívásokat, és egy egyszerű, magas szintű API-t biztosít az avatár teljes körű irányításához.
+- `main.ts`: Entry point. Instantiates `App`.
+- `app.ts`: Main application class. Creates the Babylon engine/scene and the `AvatarController`. Exposes the `window.puppet` API.
+- `avatarController.ts`: The heart of the project – wraps Babylon specifics behind a simple, high‑level avatar control API.
 
-## 4. Élő Vezérlési API (Live Control API)
+## 4. Live Control API
 
-Az alkalmazás futása közben a böngésző fejlesztői konzoljából elérhető a `window.puppet` objektum, amelyen keresztül szimulálhatjuk az LLM parancsait.
+During runtime, the browser’s dev console exposes a `window.puppet` object for simulating LLM tool calls.
 
 ### `puppet.performAction(action: string)`
+Play a predefined animation. The method attempts to find the closest match by name.
 
-Előre definiált animációk lejátszása. A metódus megpróbálja a `action` string alapján megtalálni a leginkább illeszkedő animációt.
-
-**Példák (a jelenlegi Saber modellhez):**
 ```javascript
-// Sétáló animáció indítása
+// Start walk animation
 puppet.performAction("Walking")
 
-// Ásító animáció indítása
+// Start yawn animation
 puppet.performAction("Yawn")
 
-// T-Póz beállítása
+// Enter T‑Pose
 puppet.performAction("TPose")
 ```
 
 ### `puppet.setMaterialColor(meshName: string, hexColor: string)`
+Change a mesh’s material color.
 
-Megváltoztatja egy adott `mesh` (3D objektum) anyagának színét.
-
-**Példák (a jelenlegi Saber modellhez):**
 ```javascript
-// A ruha színének beállítása pinkre
+// Dress to pink
 puppet.setMaterialColor("Saber_maid_dress", "#FF00FF")
 
-// A haj színének beállítása kékre
+// Hair to blue
 puppet.setMaterialColor("F010_Saber_Hair.001", "#0000FF")
 ```
 
 ### `puppet.setBoneRotation(boneName: string, rotation: { x: number, y: number, z: number })`
+Set a bone’s rotation (degrees).
 
-Beállítja egy adott csont rotációját. A rotációt **fokokban** kell megadni.
-
-**Példák (a jelenlegi Saber modellhez):**
 ```javascript
-// Fej elfordítása balra
+// Look left
 puppet.setBoneRotation("Armature_mixamorig:Head", { x: 0, y: 30, z: 0 })
 
-// Bal kar felemelése oldalra
+// Raise left arm sideways
 puppet.setBoneRotation("Armature_mixamorig:LeftArm", { x: 0, y: 0, z: -90 })
 
-// Jobb alkar behajlítása
+// Bend right forearm
 puppet.setBoneRotation("Armature_mixamorig:RightForeArm", { x: -70, y: 0, z: 0 })
 ```
 
 ### `puppet.stopAll()`
-
-Megállítja az összes futó animációt és reseteli az animációs rendszert.
+Stop all animations and reset the animation system.
 
 ```javascript
-// Minden animáció megállítása
 puppet.stopAll()
 ```
 
 ### `puppet.forceTPose()`
-
-Debug metódus, amely T-pózba állítja az avatárt (karok kinyújtva oldalra).
+Force T‑pose for debugging (arms out to the side).
 
 ```javascript
-// T-póz kényszerítése (debug)
 puppet.forceTPose()
 ```
 
-## 4.1 Gördülékeny (tweenelt) mozgatás az LLM számára
+### 4.1 Smooth tweened motion for the LLM
 
-### `puppet.rotateBoneTo(boneName, eulerDeg, opts)`
-- **boneName**: csontnév (részleges egyezés is ok)
-- **eulerDeg**: `{ x, y, z }` fokokban
-- **opts**: `{ durationMs?, speedDegPerSec?, easing? }`, ahol `easing` = `"linear" | "easeInOut"` (alap: `easeInOut`)
+#### `puppet.rotateBoneTo(boneName, eulerDeg, opts)`
+- **boneName**: bone name (partial match allowed)
+- **eulerDeg**: `{ x, y, z }` in degrees
+- **opts**: `{ durationMs?, speedDegPerSec?, easing? }`, `easing` ∈ `{ "linear", "easeInOut" }` (default `easeInOut`)
 
 ```javascript
-// 1.2s alatt, ease-in-out
+// 1.2s, ease‑in‑out
 puppet.rotateBoneTo("Armature_mixamorig:Head", { x: 0, y: 45, z: 0 }, { durationMs: 1200 })
 
-// Sebességalapú (90°/s), ease-in-out
+// Speed‑based (90°/s), ease‑in‑out
 puppet.rotateBoneTo("Armature_mixamorig:LeftArm", { x: 0, y: 0, z: -90 }, { speedDegPerSec: 90, easing: "easeInOut" })
 
-// Lineáris interpoláció
+// Linear interpolation
 puppet.rotateBoneTo("Armature_mixamorig:Neck", { x: 10, y: 0, z: 0 }, { durationMs: 800, easing: "linear" })
 ```
 
-### `puppet.moveRootTo(target, speedMetersPerSec, easing?)`
+#### `puppet.moveRootTo(target, speedMetersPerSec, easing?)`
 - **target**: `{ x, y, z }`
-- **speedMetersPerSec**: m/s érték (pl. `1.0`)
-- **easing**: `"linear" | "easeInOut"` (alap: `easeInOut`)
+- **speedMetersPerSec**: e.g. `1.0`
+- **easing**: `"linear" | "easeInOut"` (default `easeInOut`)
 
 ```javascript
-// 1 m/s tempóval, ease-in-out
+// 1 m/s, ease‑in‑out
 puppet.moveRootTo({ x: 1.5, y: 0, z: -1.0 }, 1.0)
 
-// Lineáris
+// Linear
 puppet.moveRootTo({ x: 0, y: 0, z: 2 }, 0.5, "linear")
 ```
 
-### `puppet.stopTweens()`
-Minden folyamatban lévő tween azonnali leállítása.
+#### `puppet.stopTweens()`
+Immediately stop all active tweens.
 
-## 🔧 **KRITIKUS TECHNIKAI MEGJEGYZÉS - Transform Node Probléma**
+### 4.2 Debug overlay & manual chat (always available)
+- The debug overlay auto‑appears when:
+  - `DEV_MODE=true`, or
+  - `localStorage.setItem('realtimeDebug','1')`, or
+  - URL has `?debug=1`.
+- Use the input at the top and press ENTER to send a message. This works regardless of connection state:
+  - If the datachannel is OPEN → text goes to the Realtime API (audio+text if `MODE=sound`).
+  - If NOT OPEN → we auto‑fallback to text `/api/chat` (your command still executes).
 
-**⚠️ FONTOS:** Mixamo rigeknél és sok GLTF modellnél a csontok **Transform Node-okhoz** vannak csatolva, ami **blokkolja** a közvetlen bone rotációkat!
+Note: modern browsers require a user gesture before playing audio. On first load a "Click to Start" button appears; click to start audio.
 
-### A Probléma:
-- `bone.setRotationQuaternion()` hívások **nem hatnak vizuálisan**
-- A csont rotáció értékek **változnak**, de a mesh **nem frissül**
-- Ez azért van, mert a Transform Node **felülírja** a bone transzformációkat
+## 🔧 Critical technical note – Transform Node issue
 
-### A Megoldás:
+**⚠️ IMPORTANT:** In Mixamo rigs and many GLTFs, bones are linked to **Transform Nodes**, which can block direct bone rotation from taking effect visually.
+
+### Problem
+- `bone.setRotationQuaternion()` changes may not show visually.
+- Bone rotation values change, but the mesh does not update.
+- Transform Node overrides bone transforms.
+
+### Solution
 ```javascript
-// MINDEN bone manipuláció előtt:
+// BEFORE manipulating any bone:
 const transformNode = bone.getTransformNode();
 if (transformNode) {
-    bone.linkTransformNode(null);  // Transform Node leválasztása
+  bone.linkTransformNode(null); // Unlink the Transform Node
 }
-// Most már működik a közvetlen bone rotáció
+// Now direct bone rotation works
 bone.setRotationQuaternion(quaternion, Space.LOCAL);
 ```
 
-### Implementáció:
-Az `AvatarController.setBoneRotation()` metódus automatikusan **leválasztja** a Transform Node-okat:
+### Implementation
+`AvatarController.setBoneRotation()` automatically unlinks Transform Nodes when needed:
 ```javascript
-// CRITICAL: Check for Transform Node blocking
 const transformNode = bone.getTransformNode();
 if (transformNode) {
-    console.log(`Transform Node detected for ${boneName}, unlinking...`);
-    bone.linkTransformNode(null);
+  console.log(`Transform Node detected for ${boneName}, unlinking...`);
+  bone.linkTransformNode(null);
 }
 ```
 
-**Ez a trükk nélkül a bone manipuláció NEM MŰKÖDIK!** 🚨
+## 5. How to run
 
-## 5. Futtatás (How to Run)
+1) Install dependencies
+```bash
+npm install
+```
+2) Start dev server
+```bash
+npm run dev
+```
+3) Open the printed localhost URL in the browser
 
-1.  **Függőségek telepítése:**
-    ```bash
-    npm install
-    ```
-2.  **Fejlesztői szerver indítása:**
-    ```bash
-    npm run dev
-    ```
-3.  **Megnyitás:** Nyisd meg a böngészőben a terminálban jelzett `localhost` címet.
+## 6. AI integration – plan (Grok 4, GPT‑5)
 
-## 6. AI integráció – Grok 4 és GPT‑5 (terv)
+### 6.1 Goal
+- Real‑time voice while issuing tool calls in parallel.
+- All operations map to `window.puppet`; transitions are tweened, not jumps.
 
-### 6.1 Cél
-- Realtime, folyamatos beszéd (audio stream) közben az AI párhuzamosan hívja a vezérlő API-t.
-- Minden műveletet a `window.puppet` API-ra képezünk le; az átmenetek tweenelve történnek, nem ugranak.
+### 6.2 Model capabilities (summary)
 
-### 6.2 Modellek képességei (összefoglaló)
-
-| Modell | Streaming audio | Párhuzamos tool hívás | Együttes (voice+tools) | Mini verzió |
+| Model | Streaming audio | Parallel tool calls | Voice+Tools together | Mini version |
 |---|---|---|---|---|
-| Grok 4 (xAI) | Igen (voice mode, realtime) | Igen (natív, RL-alapú) | Igen | Nincs hivatalos mini említve |
-| GPT‑5 (OpenAI) | Igen (Realtime API) | Igen (sequence/parallel) | Igen | GPT‑5 mini: tool támogatott, audio korlátozott |
+| Grok 4 (xAI) | Yes (voice mode, realtime) | Yes (native, RL‑based) | Yes | No official mini noted |
+| GPT‑5 (OpenAI) | Yes (Realtime API) | Yes (sequence/parallel) | Yes | GPT‑5 mini: tools supported, audio limited |
 
-Megjegyzés: a simultán működéshez saját kliens‑szál/folyamkezelés kell (WS kapcsolat + háttér tool hívások).
+Note: for simultaneous behavior we maintain our own client loop/threading.
 
-### 6.3 Architektúra váz
-- Böngésző (Babylon.js) ⇄ AI Gateway (Node/Edge) ⇄ LLM Realtime API.
-- Audio I/O: WebRTC/WS (Realtime API) – mikrofon be → LLM, beszéd vissza → lejátszás.
-- Tool hívások: a Gateway exponál egy „tool adaptert”, ami a böngésző felé `postMessage`/WS‑en parancsot küld; a kliens oldalt ezek a parancsok `window.puppet` hívásokká fordulnak.
-- Párhuzamosság: minden parancs kap `id`, `ts` és `priority` mezőt; a kliens sorban tart, de tweenek összefésülhetők (utolsó nyer elv ugyanarra a csont/gyökér célra).
+### 6.3 Architecture
+- Browser (Babylon.js) ⇄ AI Gateway (Node/Edge) ⇄ LLM Realtime API
+- Audio I/O: WebRTC/WS – mic in → LLM, speech out → playback
+- Tool calls: Gateway exposes a "tool adapter"; the browser receives commands and maps to `window.puppet`
+- Concurrency: every command gets `id`, `ts`, `priority`; the client queues tweens with last‑write wins per bone/root
 
-### 6.4 Tool (function) séma – javaslat
+### 6.4 Tool (function) schema – example
 ```json
 {
   "name": "rotateBoneTo",
@@ -203,77 +201,195 @@ Megjegyzés: a simultán működéshez saját kliens‑szál/folyamkezelés kell
   }
 }
 ```
-További eszközök ugyanebben a formában:
+Other tools in the same pattern:
 - `moveRootTo(targetX, targetY, targetZ, speedMetersPerSec, easing)`
 - `performAction(name)`
 - `setMaterialColor(meshName, hexHex)`
 - `stopTweens()`
 
-### 6.5 Kliens oldali adapter (böngésző)
-- WS üzenet formátum: `{ type: "tool", name: "rotateBoneTo", args: {...}, id }`.
-- Beérkezéskor: `window.puppet[name](...mappedArgs)` meghívása.
-- Visszajelzés: `{ id, ok: true }` vagy `{ id, ok: false, error }`.
+### 6.5 Client adapter (browser)
+- WS message format: `{ type: "tool", name: "rotateBoneTo", args: {...}, id }`
+- On receive: call `window.puppet[name](...mappedArgs)`
+- Acknowledge: `{ id, ok: true }` or `{ id, ok: false, error }`
 
-### 6.6 GPT‑5 Realtime API bekötés (vázlat)
-- Kapcsolat: Realtime WS/WebRTC.
-- Audio stream: 16‑bit/24kHz PCM; parancsok a tool‑schema alapján automatikus function callinggel (parallel chains engedélyezve).
-- Gateway feladatai: token kezelés, tool‑hívások sorba állítása, idempotencia.
+### 6.6 GPT‑5 Realtime API – sketch
+- Connection: Realtime WS/WebRTC
+- Audio: 16‑bit/24kHz PCM; automatic function calling; parallel chains
+- Gateway: token handling, tool call queueing, idempotency
 
-### 6.7 Grok 4 (xAI) voice mode bekötés (vázlat)
-- Voice stream ⇄ Grok 4; közben RL‑alapú tool usage.
-- Gateway a Grok tool‑hívásait ugyanarra a JSON sémára map‑peli, és továbbítja a kliensnek.
+### 6.7 Grok 4 (xAI) voice mode – sketch
+- Voice stream ⇄ Grok 4 with RL‑based tool usage
+- Gateway maps Grok tool calls to our JSON schema and forwards to the client
 
-### 6.8 Prompt irányelvek (LLM)
-- Kontextusban adjuk meg a csontnevek mintáit (pl. `Armature_mixamorig:Head`, `...:LeftArm`).
-- Parancsok legyenek idempotensek; egy mozgás = 1 tool‑hívás.
-- Ha célzott koordináta is van (pl. nézési cél), használja a `lookAt`‑ot vagy `rotateBoneTo`‑t kombinálva.
+### 6.8 Prompt guidance (LLM)
+- Provide bone name patterns in context (e.g., `Armature_mixamorig:Head`, `...:LeftArm`)
+- Keep commands idempotent; one motion = one tool call
+- For look targets use `lookAt` or `rotateBoneTo` appropriately
 
-### 6.9 Teszt forgatókönyv
-1) „Fordítsd a fejet 45°‑kal jobbra 1.2s alatt” → `rotateBoneTo(Head, {y:45}, {durationMs:1200})`.
-2) „Sétálj előre 2 métert 1 m/s tempóval” → `moveRootTo({x:0,z:-2}, 1.0)`.
-3) „Állj meg, állítsd le az átmeneteket” → `stopTweens()`.
+### 6.9 Test scenario
+1) “Rotate the head 45° right in 1.2s” → `rotateBoneTo(Head, {y:45}, {durationMs:1200})`
+2) “Walk forward 2 meters at 1 m/s” → `moveRootTo({x:0,z:-2}, 1.0)`
+3) “Stop and cancel transitions” → `stopTweens()`
 
-### 6.10 Következő lépések
-- AI Gateway skeleton (Node + WS) létrehozása, tool proxyval.
-- Modellkapcsolatok: GPT‑5 Realtime, majd Grok 4 voice.
-- Telemetria: parancs latency, sikerességi arány, tween queue méret.
+### 6.10 Next steps
+- Build AI Gateway (Node + WS) with tool proxy
+- Model hookups: GPT‑5 Realtime, then Grok 4 voice
+- Telemetry: command latency, success rate, tween queue size
 
-## 7. Memória (bevásárló kosár) funkció
+## 7. Memory (shopping cart) feature
 
-- **Mi ez?** Egy egyszerű kliens oldali „memória” lista, amelyben a fontos dolgokat (pl. preferenciák, felidézendő tények, vagy vásárlási szándékok) tároljuk. A rendszer a „tedd a kosárba” (HU) kifejezést automatikusan elkapja és menti.
-
-- **Hol látszik?** A képernyő bal alsó sarkában megjelenik egy doboz, amely listázza az aktuális elemeket: `date`, `ID`, `weight`, `text`.
-
-- **Adatséma:**
-  - `date`: mentés időpontja (epoch ms, automatikus)
-  - `id`: növekvő egész azonosító
-  - `weight`: szám (fontosság)
-  - `text`: a mentett szöveg
-
-- **Tárolás:** `localStorage` (kliens oldalon). Kulcs: `clubgpt.memory`.
-
-- **Fejlesztői API (konzol):**
+- **What**: A simple client‑side memory list for storing important items (preferences, reminders, shopping intents). The Hungarian phrase “tedd a kosárba” is auto‑captured.
+- **Where**: bottom‑left box listing `date`, `ID`, `weight`, `text`
+- **Schema**:
+  - `date`: epoch ms (auto)
+  - `id`: incremental id
+  - `weight`: importance score
+  - `text`: the stored text
+- **Storage**: `localStorage` under `clubgpt.memory`
+- **Dev API (console):**
 ```javascript
-// Lista lekérése
 memory.list()
-// Új elem hozzáadása
 memory.add('piros alma', 2)
-// Elem frissítése
 memory.update(1, { weight: 3, text: 'zöld alma' })
-// Elem törlése
 memory.remove(1)
 ```
-
-- **AI eszközök (toolok):**
+- **AI tools**:
   - `memory_add({ text, weight? })`
   - `memory_update({ id, text?, weight? })`
   - `memory_delete({ id })`
   - `memory_list({})`
+- **Proactive saving**:
+  - The AI may proactively save important details using `memory_add`
+  - “tedd a kosárba” is auto‑captured from ASR and text inputs
+- **Personality**:
+  - Cute, warm, and brief replies
+ 
+## 8. Environment variables & runtime configuration
 
-- **Proaktív mentés:**
-  - Az AI proaktívan is menthet „fontos” infókat (pl. preferenciák, kérések, ígéretek) `memory_add` hívással.
-  - A „tedd a kosárba” kifejezést az ASR és a szöveges inputok is automatikusan detektálják és mentik.
+On load the browser fetches `/api/config`. In dev this is served by Vite; in production by the Cloudflare Function.
 
-- **Személyiség:**
-  - Az AI stílusa cuki, kedves és bájos; rövid, lényegre törő válaszokkal.
+### 8.1 Dev – quick env management
+
+Use the helper script to edit `.env.local`. See `env-example.txt` for keys and examples.
+
+```bash
+npm run env:set KEY=VALUE [KEY=VALUE ...]
+npm run env:print
+```
+
+#### Test configs menu
+```bash
+npm run test:config
+```
+Choose from:
+- 🎨 Themes: Neon Purple, Deep Teal, custom colors
+- 🎵 Modes: Sound, Text‑only
+- ⚙️ Features: Debug mode, Memory, Lipsync, Avatar overrides
+- 🔄 Combinations: common setups
+- 🎯 Presets: Production, Dev full debug, Minimal text chat
+
+Examples:
+```bash
+# Text‑only (no mic/audio) + debug overlay, memory off
+npm run env:set MODE=text DEV_MODE=true MEMORY_ENABLED=false
+
+# Avatar URL and theme overrides
+npm run env:set AVATAR_URL=/models/avatar.glb AVATAR_SCALE=1.8 THEME.backgroundHex=#000000
+
+# Theme preset
+npm run env:set THEME_NAME=neon_purple
+```
+
+Start:
+```bash
+npm run dev
+```
+
+### 8.2 Keys
+
+- `MODE`: `sound` | `text`
+  - `sound`: full audio + mic (Realtime API)
+  - `text`: text‑only (no audio/mic) (Chat API)
+- `DEV_MODE`: `true`/`false` (debug overlay)
+- `MEMORY_ENABLED`: `true`/`false` (bottom‑left memory box)
+- `LIPSYNC_ENABLED`: `true`/`false` (amplitude‑driven lipsync)
+- `AVATAR_URL`: path to `.glb`
+- `AVATAR_SCALE`: number (e.g. `1.8`)
+- `REALTIME_MODEL`: e.g. `gpt-realtime`
+- `REALTIME_VOICE`: e.g. `shimmer` (options: alloy, ash, ballad, coral, echo, sage, shimmer, verse)
+
+#### Theme keys
+Use with `THEME_` prefix, combinable with presets:
+- `THEME_BACKGROUNDHEX`, `THEME_FOGHEX`, `THEME_FOGDENSITY`
+- `THEME_GRIDMAINHEX`, `THEME_GRIDLINEHEX`, `THEME_GRIDOPACITY`
+- `THEME_FLOORHEX`, `THEME_FLOORSPECULARHEX`, `THEME_GLOWINTENSITY`
+- `THEME_SPOTLIGHT1HEX`..`THEME_SPOTLIGHT6HEX`
+- `THEME_ORB1HEX`..`THEME_ORB5HEX`
+- `THEME_TRIANGLEHEX`
+- `THEME_SINEWAVE1HEX`, `THEME_SINEWAVE2HEX`, `THEME_SINEWAVE3HEX`
+- `THEME_PARTICLERAYHEX`
+- `THEME_DRESSBASEHEX`, `THEME_DRESSEMISSIVEHEX`
+- `THEME_HAIRHEX`, `THEME_HAIREMISSIVEHEX`
+- `THEME_SKINHEX`, `THEME_SKINEMISSIVEHEX`
+
+#### Theme presets
+- `THEME_NAME=neon_purple`
+- `THEME_NAME=deep_teal`
+
+### 8.3 /api/config (Cloudflare) and dev route
+
+- Cloudflare: `functions/api/config.ts` reads Worker env and returns JSON
+- Dev: `vite.config.ts` serves the same schema from process env
+
+Example response:
+```json
+{
+  "mode": "text",
+  "devMode": true,
+  "memoryEnabled": false,
+  "lipsync": true,
+  "themeName": "neon_purple",
+  "avatarUrl": "/models/avatar.glb",
+  "avatarScale": 1.8,
+  "theme": { "backgroundHex": "#000000" }
+}
+```
+
+### 8.4 Text mode details
+
+If `MODE=text`, we use the standard OpenAI Chat Completions API (e.g., `gpt-4`) instead of Realtime/WebRTC.
+
+- **Endpoint**: `/api/chat` (Cloudflare) or dev middleware
+- **Pros**: no mic permission required, simpler setup, more predictable API
+- **Cons**: no real‑time audio or lipsync, slower responses
+
+All tools (move avatar, change theme, memory) are supported via text responses.
+
+### 8.5 Theme propagation
+
+Theme settings affect (in real time):
+- Background and fog color/density
+- Floor colors, Glow intensity
+- Grid backdrops (GridMaterial) main/line/opacity
+- Moving spotlights (6 colors)
+- Orbs (5 colors), particle rays
+- Triangle meshes, 3‑tube sine waves (3 distinct colors)
+- Avatar default style (dress/hair/skin base + emissive)
+
+Add a new theme by editing `src/themes.ts` and set `THEME_NAME` accordingly. Override any field with `THEME_*`.
+
+### 8.6 Mic optional + fallback
+- The microphone is **optional**. If the user **denies** it:
+  - text input still works (debug overlay),
+  - commands execute via **text fallback** (`/api/chat`),
+  - meanwhile the client attempts to reconnect the realtime channel.
+
+### 8.7 Datachannel auto‑reconnect
+- If the datachannel **closes** or **errors**, the client backoffs and **restarts** the realtime session (few attempts).
+- While disconnected, **text fallback** remains active so commands aren’t lost.
+
+### 8.8 Realtime endpoints (quick ref)
+- Mint session: `POST /api/realtime/session`
+- Runtime config: `GET /api/config`
+- Text chat: `POST /api/chat`
 

@@ -81,6 +81,18 @@ export function deleteMemory(id: number): boolean {
     return changed;
 }
 
+export function clearMemory(silent: boolean = false): void {
+    try {
+        localStorage.removeItem(STORAGE_KEY);
+    } catch (err) {
+        console.warn('[memory] clearMemory error', err);
+    }
+    if (!silent) {
+        try { dispatchChange(); } catch {}
+    }
+    try { console.debug('[memory] cleared'); } catch {}
+}
+
 // --- UI ---
 
 function ensureContainer(): HTMLDivElement {

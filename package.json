@@ -6,11 +6,15 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "env:set": "node scripts/set-env.mjs",
+    "env:print": "node scripts/set-env.mjs --print",
+    "test:config": "./test-configs.sh"
   },
   "devDependencies": {
     "typescript": "~5.8.3",
-    "vite": "^7.1.2"
+    "vite": "^7.1.2",
+    "dotenv": "^16.4.5"
   },
   "dependencies": {
     "@babylonjs/core": "^8.24.0",

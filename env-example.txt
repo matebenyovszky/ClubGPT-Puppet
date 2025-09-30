@@ -1,0 +1,46 @@
+# ClubGPT-Puppet Environment Variables Example
+# Copy this file to .env.local and modify as needed
+
+# === MODES ===
+# sound (default): Full audio + mic
+# text: Text-only chat, no audio
+MODE=sound
+
+# === DEVELOPMENT ===
+# Enable detailed logging and debug overlay
+DEV_MODE=false
+
+# === FEATURES ===
+# Show memory box in bottom-left corner
+MEMORY_ENABLED=true
+
+# Enable audio amplitude-based lip sync
+LIPSYNC_ENABLED=false
+
+# === AVATAR ===
+# Path to GLB avatar model (relative or absolute)
+AVATAR_URL=/models/avatar.glb
+
+# Avatar scale multiplier
+AVATAR_SCALE=1.8
+
+# === THEME ===
+# Choose a preset theme or customize individual colors
+THEME_NAME=neon_purple
+
+# Individual theme overrides (optional)
+# THEME.backgroundHex=#000000
+# THEME.fogHex=#1f00b8
+# THEME.gridLineHex=#a020f0
+# THEME.spotLight1Hex=#a020f0
+
+# === OPENAI REALTIME API ===
+# Override default Realtime model
+# REALTIME_MODEL=gpt-realtime
+
+# Override default voice (options: alloy, ash, ballad, coral, echo, sage, shimmer, verse)
+# REALTIME_VOICE=shimmer
+
+# === CLOUD DEPLOYMENT ===
+# These are typically set in Cloudflare/Pages environment variables
+# OPENAI_API_KEY=your-openai-api-key-here

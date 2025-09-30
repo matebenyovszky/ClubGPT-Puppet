@@ -3,8 +3,11 @@ import "@babylonjs/loaders"; // Import side effects for GLTF loader
 import { GridMaterial } from "@babylonjs/materials";
 
 import { AvatarController } from "./avatarController";
-import { startRealtime, setRealtimeDebug } from "./realtimeClient";
-import { initMemoryUI } from "./memory";
+import { startRealtime, setRealtimeDebug, setRealtimeMode } from "./realtimeClient";
+import { initMemoryUI, clearMemory } from "./memory";
+import { getRuntimeConfig } from "./config";
+import type { RuntimeConfig } from "./config";
+import { THEME_PRESETS } from "./themes";
 
 // Define a global interface for the Puppet API
 declare global {
@@ -76,6 +79,7 @@ class App {
     private avatarContainer: AbstractMesh | null = null;
     private lastAIInteraction: number = Date.now();
     private animationCycleTimer: number = 0;
+    private config: RuntimeConfig | null = null;
     private theme = {
         backgroundHex: "#000000",
         fogHex: "#1f00b8",
@@ -129,19 +133,58 @@ class App {
     }
 
     private async initialize(): Promise<void> {
+        // Load runtime config first
+        try {
+            this.config = await getRuntimeConfig();
+        } catch (e) { this.config = { mode: 'sound', devMode: false }; }
+        // Apply theme preset and then overrides before building scene
+        if (this.config?.themeName && THEME_PRESETS[this.config.themeName]) {
+            this.theme = { ...this.theme, ...(THEME_PRESETS[this.config.themeName] as any) };
+        }
+        if (this.config?.theme && Object.keys(this.config.theme).length) {
+            this.theme = { ...this.theme, ...(this.config.theme as any) };
+        }
+
         // Physics not used; no Havok init required
         this.setupScene();
         await this.loadAvatar();
         this.exposeApi();
-        // Initialize memory UI box
-        try { initMemoryUI(); } catch (err) { console.warn('Memory UI init failed:', err); }
+        // Always clear puppet memory on reload, then initialize or hide memory UI
+        try {
+            // Clear memory storage silently to avoid UI flicker
+            clearMemory(true);
+            if (this.config?.memoryEnabled === false) {
+                const mb = document.getElementById('memory-box');
+                if (mb) (mb as any).style.display = 'none';
+            } else {
+                initMemoryUI();
+            }
+        } catch (err) { console.warn('Memory UI init failed:', err); }
         // Touch refs for TS so strict unused checks don't explode in prod
         try { console.debug('App refs ready', { backdrop: !!this.backdrop, avatarRoot: !!this.avatarContainer }); } catch {}
         // Auto-start realtime voice session (no UI button)
         try {
-            // Enable debug overlay via localStorage flag or ?debug=1. Force-off here, user can toggle manually.
-            setRealtimeDebug(true);
-            await startRealtime({ debug: true, vadLevelThreshold: 0.06 });
+            const dev = !!(this.config?.devMode);
+            setRealtimeDebug(dev);
+            // Set realtime mode (audio vs text)
+            setRealtimeMode(this.config?.mode || 'sound');
+            
+            // Wait for user interaction to start
+            const startButton = document.createElement('button');
+            startButton.textContent = 'Click to Start';
+            startButton.style.position = 'absolute';
+            startButton.style.left = '50%';
+            startButton.style.top = '50%';
+            startButton.style.transform = 'translate(-50%, -50%)';
+            startButton.style.padding = '20px';
+            startButton.style.fontSize = '24px';
+            startButton.style.zIndex = '10001';
+            document.body.appendChild(startButton);
+
+            startButton.onclick = async () => {
+                startButton.remove();
+                await startRealtime({ debug: dev, vadLevelThreshold: 0.06, enableLipSync: !!this.config?.lipsync });
+            };
         } catch (err) {
             console.warn("Realtime startup failed:", err);
         }
@@ -382,6 +425,9 @@ class App {
         this.orbs.push(makeParticleRay("ray3", -1, -3));
         this.orbs.push(makeParticleRay("ray4", 2.5, -2.8));
 
+        // Apply theme colors across background elements now that they exist
+        this.applyThemeToSceneElements();
+
         // Pulsing glow effect
         let glowPhase = 0;
         this.scene.onBeforeRenderObservable.add(() => {
@@ -403,10 +449,20 @@ class App {
     }
 
     private async loadAvatar(): Promise<void> {
+        // Determine avatar source
+        let root = "/models/";
+        let file = "avatar.glb";
+        const url = this.config?.avatarUrl;
+        if (url && typeof url === 'string' && url.length > 0) {
+            const idx = url.lastIndexOf('/');
+            if (idx >= 0) { root = url.slice(0, idx + 1); file = url.slice(idx + 1); }
+            else { root = ""; file = url; }
+        }
 
-        const { meshes, animationGroups, skeletons } = await SceneLoader.ImportMeshAsync("", "/models/", "avatar.glb", this.scene);
+        const { meshes, animationGroups, skeletons } = await SceneLoader.ImportMeshAsync("", root, file, this.scene);
         const avatarContainer = meshes[0];
-        avatarContainer.scaling.scaleInPlace(1.8);
+        const scale = (this.config?.avatarScale != null && isFinite(this.config.avatarScale!)) ? (this.config!.avatarScale as number) : 1.8;
+        avatarContainer.scaling.scaleInPlace(scale);
         avatarContainer.position.y = 0;
         this.avatarContainer = avatarContainer; // Store reference for rotation
         this.avatarController.setAvatar(avatarContainer, animationGroups, ...skeletons);
@@ -576,8 +632,9 @@ class App {
                     }
                 });
                 
-                // Update scene elements colors (this will require recreating some elements for full effect)
-                console.log('Theme updated. Some elements may require scene reload for full color changes.');
+                // Propagate theme to all background elements (orbs, rays, triangles, sine waves, grid backdrops)
+                this.applyThemeToSceneElements();
+                console.log('Theme updated and propagated to scene elements.');
             }
         };
         // expose scene for debugging (skeletons, meshes)
@@ -595,6 +652,70 @@ class App {
         window.addEventListener("resize", () => {
             this.engine.resize();
         });
+    }
+
+    private applyThemeToSceneElements(): void {
+        try {
+            // Grid backdrops: update all GridMaterial instances found in scene
+            for (const mesh of this.scene.meshes) {
+                const mat: any = mesh.material;
+                if (mat && typeof mat.getClassName === 'function' && mat.getClassName() === 'GridMaterial') {
+                    mat.mainColor = Color3.FromHexString(this.theme.gridMainHex);
+                    mat.lineColor = Color3.FromHexString(this.theme.gridLineHex);
+                    (mat as any).opacity = this.theme.gridOpacity;
+                }
+            }
+
+            // Spotlights already updated in setTheme; ensure here as well
+            const spotKeys = ['spotLight1Hex','spotLight2Hex','spotLight3Hex','spotLight4Hex','spotLight5Hex','spotLight6Hex'];
+            this.movingLights.forEach((light, i) => {
+                const k = spotKeys[i] as keyof typeof this.theme;
+                const hex = (this.theme as any)[k];
+                if (hex) {
+                    light.diffuse = Color3.FromHexString(hex);
+                    light.specular = Color3.FromHexString(hex).scale(0.5);
+                }
+            });
+
+            // Orbs and Rays
+            for (const m of this.orbs) {
+                const name = m.name.toLowerCase();
+                const mat = m.material as StandardMaterial | null;
+                if (!mat) continue;
+                if (name.startsWith('orb')) {
+                    const match = name.match(/^orb([1-5])/);
+                    if (match) {
+                        const idx = Number(match[1]);
+                        const key = (`orb${idx}Hex`) as keyof typeof this.theme;
+                        const hex = (this.theme as any)[key];
+                        if (hex) mat.emissiveColor = Color3.FromHexString(hex);
+                    }
+                } else if (name.startsWith('ray')) {
+                    mat.emissiveColor = Color3.FromHexString(this.theme.particleRayHex);
+                }
+            }
+
+            // Triangles
+            for (const tri of ['triangle1','triangle2','triangle3','triangle4']) {
+                const mesh = this.scene.getMeshByName(tri);
+                if (mesh && mesh.material) {
+                    const mat = mesh.material as StandardMaterial;
+                    mat.emissiveColor = Color3.FromHexString(this.theme.triangleHex);
+                }
+            }
+
+            // Sine wave tubes (materials named <sineX>_mat_0..2)
+            const sineColors = [this.theme.sineWave1Hex, this.theme.sineWave2Hex, this.theme.sineWave3Hex];
+            for (const sine of ['sine1','sine2','sine3','sine4']) {
+                for (let i = 0; i < 3; i++) {
+                    const mat = this.scene.getMaterialByName(`${sine}_mat_${i}`) as StandardMaterial | null;
+                    const hex = sineColors[i];
+                    if (mat && hex) mat.emissiveColor = Color3.FromHexString(hex);
+                }
+            }
+        } catch (e) {
+            console.warn('applyThemeToSceneElements failed:', e);
+        }
     }
 }
 
