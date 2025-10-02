@@ -3,6 +3,17 @@ import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
 
+// Load environment variables from .env.local for development
+try {
+  const root = process.cwd();
+  const envLocal = path.join(root, '.env.local');
+  const envDefault = path.join(root, '.env');
+  if (fs.existsSync(envDefault)) dotenv.config({ path: envDefault });
+  if (fs.existsSync(envLocal)) dotenv.config({ path: envLocal });
+} catch (error) {
+  console.warn('Failed to load .env files:', error);
+}
+
 // Dev-only middleware to mint ephemeral Realtime session tokens
 function realtimeEphemeralSessionPlugin() {
   return {
@@ -566,14 +577,6 @@ function realtimeEphemeralSessionPlugin() {
           return;
         }
         try {
-          // Ensure local .env files are loaded for the dev server process
-          try {
-            const root = process.cwd();
-            const envLocal = path.join(root, '.env.local');
-            const envDefault = path.join(root, '.env');
-            if (fs.existsSync(envDefault)) dotenv.config({ path: envDefault });
-            if (fs.existsSync(envLocal)) dotenv.config({ path: envLocal });
-          } catch {}
 
           const env = (globalThis as any).process?.env || {};
           const pick = (k: string) => env[k];

@@ -162,29 +162,15 @@ class App {
         } catch (err) { console.warn('Memory UI init failed:', err); }
         // Touch refs for TS so strict unused checks don't explode in prod
         try { console.debug('App refs ready', { backdrop: !!this.backdrop, avatarRoot: !!this.avatarContainer }); } catch {}
-        // Auto-start realtime voice session (no UI button)
+        // Auto-start realtime voice session (no UI button needed)
         try {
             const dev = !!(this.config?.devMode);
             setRealtimeDebug(dev);
             // Set realtime mode (audio vs text)
             setRealtimeMode(this.config?.mode || 'sound');
-            
-            // Wait for user interaction to start
-            const startButton = document.createElement('button');
-            startButton.textContent = 'Click to Start';
-            startButton.style.position = 'absolute';
-            startButton.style.left = '50%';
-            startButton.style.top = '50%';
-            startButton.style.transform = 'translate(-50%, -50%)';
-            startButton.style.padding = '20px';
-            startButton.style.fontSize = '24px';
-            startButton.style.zIndex = '10001';
-            document.body.appendChild(startButton);
 
-            startButton.onclick = async () => {
-                startButton.remove();
-                await startRealtime({ debug: dev, vadLevelThreshold: 0.06, enableLipSync: !!this.config?.lipsync });
-            };
+            // Start session immediately
+            await startRealtime({ debug: dev, vadLevelThreshold: 0.06, enableLipSync: !!this.config?.lipsync });
         } catch (err) {
             console.warn("Realtime startup failed:", err);
         }
