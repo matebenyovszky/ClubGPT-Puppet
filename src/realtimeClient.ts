@@ -34,7 +34,7 @@ let debugInputBound = false;
 const pendingToolCalls = new Map<string, { name: string; args: string; itemId?: string }>();
 
 // Memory helpers
-import { addMemory, updateMemory, deleteMemory, listMemory, captureBasketFromText, captureMemoryFromText } from './memory';
+import { addMemory, updateMemory, deleteMemory, listMemory, captureBasketFromText, cleanupMemory } from './memory';
 
 // === LipSync configuration (viseme mapping & timing) ===
 const lipVisemeMap: Record<string, { open: number; wide: number; round: number }> = {
@@ -135,7 +135,7 @@ function ensureDebugOverlay(): HTMLElement {
         root.style.lineHeight = '1.35';
         root.style.padding = '8px 10px';
         root.style.borderRadius = '8px';
-        root.style.maxWidth = '40vw';
+        root.style.maxWidth = '75vh';
         root.style.maxHeight = '40vh';
         root.style.overflow = 'auto';
         root.style.whiteSpace = 'pre-wrap';
@@ -273,10 +273,12 @@ function mapToolToPuppet(name: string, args: any, opt?: StartOptions): any {
                 } catch {}
                 const animations: string[] = (scene?.animationGroups || []).map((ag: any) => String(ag.name));
                 const meshes: string[] = (scene?.meshes || []).map((m: any) => String(m.name));
-                const tools = ['perform_action','rotate_bone_to','move_root_to','set_material_color','stop_tweens','stop_all','look_at','set_theme'];
+                const tools = ['perform_action','rotate_bone_to','move_root_to','set_material_color','stop_tweens','stop_all','look_at','set_theme','memory_add','memory_update','memory_delete','memory_list'];
                 const api = Object.keys(puppet || {});
-                const result = { bones, animations, meshes, tools, api };
-                debugLog(`tool get_scene_info → bones=${bones.length}, anims=${animations.length}, meshes=${meshes.length}`, opt);
+                // Include current memory snapshot
+                const memories = listMemory();
+                const result = { bones, animations, meshes, tools, api, memories };
+                debugLog(`tool get_scene_info → bones=${bones.length}, anims=${animations.length}, meshes=${meshes.length}, memories=${memories.length}`, opt);
                 return { ok: true, result };
             }
             case 'set_theme': {
@@ -424,9 +426,17 @@ function setupDebugInputHandlers(opt?: StartOptions) {
         const text = (input.value || '').trim();
         if (!text) return;
 
-        // Auto-capture Hungarian cart phrase and general memory intents
+        // Auto-capture Hungarian cart phrase (always)
         try { captureBasketFromText(text); } catch {}
-        try { captureMemoryFromText(text); } catch {}
+
+        // Note: Memory capture disabled from manual input to prevent duplicates
+        // AI should use memory_add tool explicitly when needed
+        // Periodic cleanup
+        try {
+            if (Math.random() < 0.1) { // ~10% chance
+                cleanupMemory(15); // Keep only top 15 most important items
+            }
+        } catch {}
 
         try {
             if (currentMode === 'text') {
@@ -508,10 +518,15 @@ function handleServerEvent(ev: AnyEvent, opt?: StartOptions) {
         case 'conversation.item.input_audio_transcription.completed': {
             const tx = ev?.transcript ?? ev?.text ?? '';
             if (tx) debugLog(`ASR ✔ ${tx}`, opt);
-            // Auto-capture Hungarian cart phrase from ASR
+            // Auto-capture Hungarian cart phrase from ASR (always)
             try { captureBasketFromText(tx); } catch {}
-            // Auto-capture general memory intents from ASR
-            try { captureMemoryFromText(tx); } catch {}
+            // Note: Automatic memory capture disabled - AI should use memory_add tool
+            // Periodic cleanup
+            try {
+                if (Math.random() < 0.05) { // ~5% chance for ASR
+                    cleanupMemory(15);
+                }
+            } catch {}
             break;
         }
         case 'response.audio_transcript.delta': {
@@ -781,33 +796,23 @@ async function createPeerConnection(sessionToken: string, model: string, opt?: S
     await pc.setLocalDescription(offer);
     await waitForIceGatheringComplete(pc);
 
-    const modelsToTry = Array.from(new Set([model, 'gpt-4o-realtime-preview']));
-    let answer: string | null = null;
-    for (const m of modelsToTry) {
-        const url = `https://api.openai.com/v1/realtime?model=${encodeURIComponent(m)}`;
-        const resp = await fetch(url, {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${sessionToken}`,
-                'Content-Type': 'application/sdp',
-                'Accept': 'application/sdp',
-                'OpenAI-Beta': 'realtime=v1'
-            },
-            body: pc.localDescription?.sdp || ''
-        });
-        const text = await resp.text();
-        if (resp.ok && /^v=/m.test(text)) {
-            answer = text;
-            if (m !== model) debugLog(`webrtc: fell back to model ${m}`, opt);
-            break;
-        } else {
-            const bodyText = text.length > 300 ? `${text.slice(0, 300)}...` : text;
-            debugLog(`webrtc SDP fetch failed for model=${m} status=${resp.status} body=${bodyText}`, opt);
-        }
+    const url = `https://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`;
+    const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${sessionToken}`,
+            'Content-Type': 'application/sdp',
+            'Accept': 'application/sdp',
+            'OpenAI-Beta': 'realtime=v1'
+        },
+        body: pc.localDescription?.sdp || ''
+    });
+    const text = await resp.text();
+    if (!(resp.ok && /^v=/m.test(text))) {
+        const bodyText = text.length > 300 ? `${text.slice(0, 300)}...` : text;
+        throw new Error(`webrtc SDP failed for model=${model} status=${resp.status} body=${bodyText}`);
     }
-    if (!answer) {
-        throw new Error(`Expect line: v=`);
-    }
+    const answer = text;
     await pc.setRemoteDescription({ type: 'answer', sdp: answer });
     debugLog('webrtc connected', opt);
 

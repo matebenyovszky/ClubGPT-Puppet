@@ -79,7 +79,7 @@ export async function onRequestPost(context: { request: Request; env: Record<str
     ];
 
     const openaiBody = {
-      model: 'gpt-4', // Using GPT-4 for text mode
+      model: 'gpt-4.1-mini', // Using GPT-4 for text mode
       messages: messages,
       max_tokens: 1000,
       temperature: 0.8,

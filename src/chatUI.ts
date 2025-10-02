@@ -18,7 +18,15 @@ export function initChatUI(mode: ChatUIMode = 'sound') {
         root.style.lineHeight = '1.35';
         root.style.padding = '8px 10px';
         root.style.borderRadius = '8px';
-        root.style.maxWidth = '40vw';
+        // Mobile-safe width: prefer 92vw but cap at 650px
+        root.style.boxSizing = 'border-box';
+        root.style.width = 'min(92vw, 650px)';
+        root.style.minWidth = '280px';
+        root.style.maxWidth = '650px';
+        root.style.maxHeight = '50vh';
+        root.style.overflow = 'hidden';
+        root.style.display = 'flex';
+        root.style.flexDirection = 'column';
         root.style.pointerEvents = 'auto';
 
         const title = document.createElement('div');
@@ -36,11 +44,13 @@ export function initChatUI(mode: ChatUIMode = 'sound') {
         input.type = 'text';
         input.placeholder = 'Type message...';
         input.style.flex = '1 1 auto';
+        input.style.minWidth = '0';
         input.style.border = '1px solid #666';
         input.style.borderRadius = '4px';
         input.style.padding = '6px 8px';
         input.style.background = 'rgba(30,30,30,0.8)';
         input.style.color = '#fff';
+        input.style.fontSize = '14px';
 
         const sendBtn = document.createElement('button');
         sendBtn.textContent = 'Send';
@@ -58,8 +68,9 @@ export function initChatUI(mode: ChatUIMode = 'sound') {
         const feed = document.createElement('div');
         feed.id = 'chat-box-feed';
         feed.style.marginTop = '6px';
-        feed.style.maxHeight = '28vh';
+        feed.style.flex = '1 1 auto';
         feed.style.overflow = 'auto';
+        feed.style.minHeight = '0';
         root.appendChild(feed);
 
         document.body.appendChild(root);

@@ -1,5 +1,5 @@
 // Text-only chat client for MODE=text
-// Uses OpenAI GPT-4 chat completions API instead of Realtime API
+// Uses OpenAI gpt-4.1-mini chat completions API instead of Realtime API
 
 type ConversationMessage = {
   role: 'user' | 'assistant';

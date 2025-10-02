@@ -357,7 +357,7 @@ Example response:
 
 ### 8.4 Text mode details
 
-If `MODE=text`, we use the standard OpenAI Chat Completions API (e.g., `gpt-4`) instead of Realtime/WebRTC.
+If `MODE=text`, we use the standard OpenAI Chat Completions API (e.g., `gpt-4.1-mini`) instead of Realtime/WebRTC.
 
 - **Endpoint**: `/api/chat` (Cloudflare) or dev middleware
 - **Pros**: no mic permission required, simpler setup, more predictable API

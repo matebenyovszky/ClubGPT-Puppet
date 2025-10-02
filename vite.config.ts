@@ -261,7 +261,6 @@ function realtimeEphemeralSessionPlugin() {
               headers: {
                 'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json',
-                'OpenAI-Beta': 'realtime=v1'
               },
               body: JSON.stringify(reqBody)
             });
@@ -270,14 +269,9 @@ function realtimeEphemeralSessionPlugin() {
           let upstream = await createSession(body);
           if (!upstream.ok) {
             const errText = await upstream.text();
-            const fallbackBody = { ...body, model: 'gpt-4o-realtime-preview' };
-            upstream = await createSession(fallbackBody);
-            if (!upstream.ok) {
-              const text2 = await upstream.text();
-              res.statusCode = upstream.status;
-              res.end(text2 || errText);
-              return;
-            }
+            res.statusCode = upstream.status;
+            res.end(errText || 'Realtime session creation failed');
+            return;
           }
 
           if (!upstream.ok) {
@@ -341,7 +335,7 @@ function realtimeEphemeralSessionPlugin() {
             'SAFE RANGES: Always respect safe ranges from get_safe_ranges. If ranges are missing, use conservative defaults and small increments per step.',
             'ANIMATIONS PRESENT: Idle, TPose, Walking, Yawn. Prefer perform_action if it matches intent. Combine with move_root_to to translate while walking; return to Idle after movement unless asked otherwise.',
             'LANGUAGE: Understand any language. Map left/right synonyms (en: left/right; hu: bal/jobb; de: links/rechts; es: izquierda/derecha; fr: gauche/droite).',
-            'MEMORY: Proactively save important user details to memory_add with a reasonable weight: preferences (colors, styles, likes), explicit requests to remember, commitments, todo-like items, and shopping intents. Always comply with explicit memory commands (add/update/delete). Keep entries short and meaningful.',
+            'MEMORY: Proactively save important user details to memory_add with a reasonable weight: preferences (colors, styles, likes), explicit requests to remember, commitments, todo-like items, and shopping intents. Always comply with explicit memory commands (add/update/delete). Keep entries short and meaningful. When the user asks what you remember or what you know about them, call memory_list and summarize the items.',
             'SHOPPING: If the user says "tedd a kosárba" (Hungarian for "add to cart"), save the utterance to memory immediately using memory_add.',
             "HAND/ARM RAISING RULES: In Babylon.js, to raise hands UP (towards sky), use NEGATIVE X rotation for arms. Positive X rotation moves arms backward/down.",
             '- RIGHT ARM UP: RightArm x=−80° to −100° (negative X raises arm forward/up), RightForeArm x=−20° (slight bend)',
@@ -371,7 +365,7 @@ function realtimeEphemeralSessionPlugin() {
           ];
 
           const openaiBody = {
-            model: 'gpt-4',
+            model: 'gpt-4.1-mini',
             messages: messages,
             max_tokens: 1000,
             temperature: 0.8,
@@ -625,6 +619,9 @@ function realtimeEphemeralSessionPlugin() {
             theme,
             realtimeModel: str(pick('REALTIME_MODEL')),
             realtimeVoice: str(pick('REALTIME_VOICE')),
+            // Accept multiple variants for convenience
+            webMode: (pick('WEB_MODE') != null ? bool(pick('WEB_MODE')) : undefined) ?? (pick('WEB') != null ? bool(pick('WEB')) : undefined),
+            web3FormsKey: str(pick('WEB3FORMS_KEY')) ?? str(pick('WEB3FORMS.ACCESS_KEY')) ?? str(pick('WEB3FORMS_KEY_PUBLIC')),
           };
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify(config));

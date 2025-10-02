@@ -6,4 +6,15 @@
 /models/*
   Cache-Control: public, max-age=31536000, immutable
 
+# WASM files need these headers for SharedArrayBuffer support
+*.wasm
+  Cross-Origin-Embedder-Policy: require-corp
+  Cross-Origin-Opener-Policy: same-origin
+
+# API routes for OpenAI integration
+/api/*
+  Access-Control-Allow-Origin: *
+  Access-Control-Allow-Methods: GET, POST, OPTIONS
+  Access-Control-Allow-Headers: Content-Type, Authorization
+
 

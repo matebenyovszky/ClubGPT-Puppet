@@ -35,11 +35,18 @@ THEME_NAME=neon_purple
 # THEME.spotLight1Hex=#a020f0
 
 # === OPENAI REALTIME API ===
-# Override default Realtime model
+# Override default Realtime model (GA)
 # REALTIME_MODEL=gpt-realtime
 
 # Override default voice (options: alloy, ash, ballad, coral, echo, sage, shimmer, verse)
 # REALTIME_VOICE=shimmer
+
+# === WEB MODE (Production/Public Deployment) ===
+# Enable contact/waitlist button for public websites
+WEB_MODE=false
+
+# Web3Forms API key for email collection (get free key at https://web3forms.com)
+# WEB3FORMS_KEY=your-web3forms-access-key-here
 
 # === CLOUD DEPLOYMENT ===
 # These are typically set in Cloudflare/Pages environment variables

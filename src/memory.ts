@@ -93,6 +93,26 @@ export function clearMemory(silent: boolean = false): void {
     try { console.debug('[memory] cleared'); } catch {}
 }
 
+// Clean up old/low-priority memory items to prevent bloat
+export function cleanupMemory(maxItems: number = 20): number {
+    const items = readAll();
+    if (items.length <= maxItems) return 0;
+
+    // Sort by weight (highest first), then by recency (newest first)
+    items.sort((a, b) => {
+        if (a.weight !== b.weight) return b.weight - a.weight;
+        return b.date - a.date;
+    });
+
+    // Keep only the top items
+    const keep = items.slice(0, maxItems);
+    writeAll(keep);
+
+    const removed = items.length - keep.length;
+    console.debug(`[memory] cleanup removed ${removed} old items`);
+    return removed;
+}
+
 // --- UI ---
 
 function ensureContainer(): HTMLDivElement {
@@ -102,17 +122,24 @@ function ensureContainer(): HTMLDivElement {
         el.id = 'memory-box';
         el.style.position = 'fixed';
         el.style.left = '8px';
-        el.style.bottom = '8px';
+        el.style.top = '8px';
+        el.style.zIndex = '10001';
         el.style.background = 'rgba(0,0,0,0.35)';
         el.style.color = '#fff';
         el.style.padding = '6px 8px';
         el.style.borderRadius = '6px';
         el.style.fontFamily = 'system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, sans-serif';
         el.style.fontSize = '12px';
-        el.style.maxWidth = '36vw';
+        el.style.width = '36vw';
+        el.style.maxWidth = '500px';
         el.style.maxHeight = '40vh';
         el.style.overflow = 'auto';
         document.body.appendChild(el);
+    } else {
+        // Force repositioning in case it was cached in wrong position
+        el.style.left = '8px';
+        el.style.top = '8px';
+        el.style.bottom = 'auto';
     }
     return el;
 }
@@ -172,31 +199,82 @@ export function captureBasketFromText(raw: string): MemoryItem | null {
     return item;
 }
 
-// Broad intent capture for memory-like commands in HU/EN
+// Smart intent capture for memory-like commands and meaningful items in HU/EN
 export function captureMemoryFromText(raw: string): MemoryItem | null {
     const text = String(raw || '').trim();
     if (!text) return null;
 
-    const patterns: RegExp[] = [
+    // Skip very short messages (likely greetings or commands)
+    if (text.length < 4) return null;
+
+    // Skip common conversational phrases that don't need remembering
+    const skipPatterns = [
+        /^szia/i, /^hello/i, /^hi/i, /^hey/i, /^hah[oó]/i,
+        /^köszönöm/i, /^thanks/i, /^thank you/i,
+        /^igen/i, /^nem/i, /^yes/i, /^no/i, /^ok/i, /^okay/i,
+        /^mi van\?/i, /^how are you/i, /^mit csinálsz/i, /^what are you doing/i,
+        /^segíts/i, /^help/i, /^tudsz segíteni/i, /^can you help/i
+    ];
+
+    for (const pattern of skipPatterns) {
+        if (pattern.test(text)) return null;
+    }
+
+    // Explicit memory commands - these should always be saved
+    const explicitPatterns: RegExp[] = [
         // Hungarian: "jegyezd meg, hogy ..." or "jegyezd meg ..."
         /^jegyezd\s+meg(?:,?\s*hogy)?\s+(.+)$/i,
         // English variants
         /^save\s+to\s+memory\s*:?\s+(.+)$/i,
         /^add\s+to\s+memory\s*:?\s+(.+)$/i,
         /^remember\s*(?:that)?\s*:?\s+(.+)$/i,
-        /^note\s*:?\s+(.+)$/i
+        /^note\s*:?\s+(.+)$/i,
+        /^memória\s*:?\s+(.+)$/i,
+        /^memory\s*:?\s+(.+)$/i
     ];
 
-    for (const re of patterns) {
+    for (const re of explicitPatterns) {
         const m = text.match(re);
         if (m && m[1]) {
             const payload = m[1].trim();
-            if (payload) {
-                const item = addMemory(payload, 1);
+            if (payload && payload.length > 2) {
+                const item = addMemory(payload, 2); // Higher weight for explicit commands
                 return item;
             }
         }
     }
+
+    // Smart filtering for meaningful content that should be remembered
+    // Look for preferences, todos, shopping, commitments
+    const meaningfulPatterns = [
+        // Preferences and likes
+        /(?:szeretem|szeret|kedvenc|prefer|like|love|favorite).+/i,
+        // Shopping/intents
+        /(?:vesz|vásárol|kell|szükség|need|buy|want|would like).+/i,
+        // Todos and commitments
+        /(?:csinál|készít|javít|megcsinál|do|make|fix|create|build).+/i,
+        // Personal information
+        /(?:én vagyok|az én nevem|lakom|dolgozom|i am|my name|live|work).+/i,
+        // Important dates or events
+        /(?:holnap|ma|múltkor|jövőre|tomorrow|today|yesterday|next).+/i
+    ];
+
+    for (const pattern of meaningfulPatterns) {
+        if (pattern.test(text)) {
+            // Additional filtering: must contain at least one noun-like word
+            const words = text.split(/\s+/);
+            const hasNounLikeWord = words.some(word =>
+                word.length > 3 && // longer than 3 chars
+                !/^(és|a|az|egy|the|and|or|but|so|then|that)$/i.test(word) // not common conjunctions
+            );
+
+            if (hasNounLikeWord && text.length > 8) { // meaningful length
+                const item = addMemory(text, 1);
+                return item;
+            }
+        }
+    }
+
     return null;
 }
 

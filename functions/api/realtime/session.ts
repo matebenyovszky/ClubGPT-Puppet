@@ -250,19 +250,8 @@ export async function onRequestPost(context: { request: Request; env: Record<str
 
     let upstream = await createSession(body);
     if (!upstream.ok) {
-      // Fallback to known working preview model if "gpt-realtime" is unavailable
-      try {
-        const errText = await upstream.text();
-        const fallbackBody = { ...body, model: 'gpt-4o-realtime-preview' } as const;
-        upstream = await createSession(fallbackBody);
-        if (!upstream.ok) {
-          const text2 = await upstream.text();
-          return new Response(text2 || errText, { status: upstream.status });
-        }
-      } catch (_) {
-        // If fallback attempt throws, bubble original error up
-        return new Response('Realtime session creation failed', { status: 500 });
-      }
+      const errText = await upstream.text();
+      return new Response(errText || 'Realtime session creation failed', { status: upstream.status });
     }
 
     const json = await upstream.json();

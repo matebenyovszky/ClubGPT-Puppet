@@ -1,0 +1,39 @@
+name = "puppet-avatar"
+compatibility_date = "2024-01-01"
+
+# Cloudflare Pages configuration
+[pages]
+# Enable Node.js runtime for API routes
+runtime = "nodejs"
+
+# Build configuration
+[build]
+command = "npm run build"
+cwd = "."
+watch_dir = "src"
+
+# Environment variables that should be available at build time
+[vars]
+NODE_VERSION = "18"
+
+# Headers for WASM support and security
+[[headers]]
+for = "/*"
+[headers.values]
+  "X-Content-Type-Options" = "nosniff"
+  "Cross-Origin-Opener-Policy" = "same-origin"
+  "Cross-Origin-Embedder-Policy" = "require-corp"
+
+[[headers]]
+for = "*.wasm"
+[headers.values]
+  "Cross-Origin-Embedder-Policy" = "require-corp"
+  "Cross-Origin-Opener-Policy" = "same-origin"
+
+# API routes need CORS for OpenAI integration
+[[headers]]
+for = "/api/*"
+[headers.values]
+  "Access-Control-Allow-Origin" = "*"
+  "Access-Control-Allow-Methods" = "GET, POST, OPTIONS"
+  "Access-Control-Allow-Headers" = "Content-Type, Authorization"

@@ -43,6 +43,8 @@ export type RuntimeConfig = {
     theme?: ThemeConfig;
     realtimeModel?: string;
     realtimeVoice?: string;
+    webMode?: boolean;
+    web3FormsKey?: string;
 };
 
 export async function getRuntimeConfig(): Promise<RuntimeConfig> {
@@ -64,6 +66,8 @@ export async function getRuntimeConfig(): Promise<RuntimeConfig> {
             theme: (json?.theme && typeof json.theme === 'object') ? json.theme as ThemeConfig : undefined,
             realtimeModel: typeof json?.realtimeModel === 'string' ? json.realtimeModel : undefined,
             realtimeVoice: typeof json?.realtimeVoice === 'string' ? json.realtimeVoice : undefined,
+            webMode: typeof json?.webMode === 'boolean' ? json.webMode : undefined,
+            web3FormsKey: typeof json?.web3FormsKey === 'string' ? json.web3FormsKey : undefined,
         };
         return cfg;
     } catch (_) {

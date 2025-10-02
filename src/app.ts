@@ -8,6 +8,7 @@ import { initMemoryUI, clearMemory } from "./memory";
 import { getRuntimeConfig } from "./config";
 import type { RuntimeConfig } from "./config";
 import { THEME_PRESETS } from "./themes";
+import { initContactWidget } from "./contactWidget";
 
 // Define a global interface for the Puppet API
 declare global {
@@ -173,6 +174,15 @@ class App {
             await startRealtime({ debug: dev, vadLevelThreshold: 0.06, enableLipSync: !!this.config?.lipsync });
         } catch (err) {
             console.warn("Realtime startup failed:", err);
+        }
+
+        // Initialize contact/waitlist widget if web mode is enabled
+        try {
+            if (this.config?.webMode && this.config?.web3FormsKey) {
+                initContactWidget(this.config.web3FormsKey);
+            }
+        } catch (err) {
+            console.warn("Contact widget init failed:", err);
         }
         
         // Start rendering only after everything is ready
