@@ -136,8 +136,18 @@ class App {
     private async initialize(): Promise<void> {
         // Load runtime config first
         try {
+            console.log('[App] Fetching runtime config from /api/config...');
             this.config = await getRuntimeConfig();
-        } catch (e) { this.config = { mode: 'sound', devMode: false }; }
+            console.log('[App] Runtime config loaded:', {
+                mode: this.config?.mode,
+                devMode: this.config?.devMode,
+                webMode: this.config?.webMode,
+                hasWeb3FormsKey: !!this.config?.web3FormsKey
+            });
+        } catch (e) { 
+            console.error('[App] Failed to load runtime config:', e);
+            this.config = { mode: 'sound', devMode: false }; 
+        }
         // Apply theme preset and then overrides before building scene
         if (this.config?.themeName && THEME_PRESETS[this.config.themeName]) {
             this.theme = { ...this.theme, ...(THEME_PRESETS[this.config.themeName] as any) };
@@ -178,11 +188,21 @@ class App {
 
         // Initialize contact/waitlist widget if web mode is enabled
         try {
+            console.log('[ContactWidget] Config check:', {
+                webMode: this.config?.webMode,
+                hasWeb3FormsKey: !!this.config?.web3FormsKey,
+                web3FormsKey: this.config?.web3FormsKey ? '***' + this.config.web3FormsKey.slice(-4) : 'MISSING'
+            });
+            
             if (this.config?.webMode && this.config?.web3FormsKey) {
+                console.log('[ContactWidget] Initializing contact widget...');
                 initContactWidget(this.config.web3FormsKey);
+                console.log('[ContactWidget] Widget initialized successfully!');
+            } else {
+                console.warn('[ContactWidget] Widget NOT initialized - webMode or web3FormsKey missing!');
             }
         } catch (err) {
-            console.warn("Contact widget init failed:", err);
+            console.error("Contact widget init failed:", err);
         }
         
         // Start rendering only after everything is ready

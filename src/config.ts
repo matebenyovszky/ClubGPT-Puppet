@@ -52,6 +52,8 @@ export async function getRuntimeConfig(): Promise<RuntimeConfig> {
         const res = await fetch('/api/config', { method: 'GET' });
         if (!res.ok) throw new Error(`cfg ${res.status}`);
         const json = await res.json();
+        console.log('[getRuntimeConfig] Raw JSON from /api/config:', json);
+        
         // Minimal shape validation
         const mode = json?.mode === 'text' ? 'text' : 'sound';
         const devMode = !!json?.devMode;
@@ -69,8 +71,10 @@ export async function getRuntimeConfig(): Promise<RuntimeConfig> {
             webMode: typeof json?.webMode === 'boolean' ? json.webMode : undefined,
             web3FormsKey: typeof json?.web3FormsKey === 'string' ? json.web3FormsKey : undefined,
         };
+        console.log('[getRuntimeConfig] Parsed config:', cfg);
         return cfg;
-    } catch (_) {
+    } catch (err) {
+        console.error('[getRuntimeConfig] Failed to fetch config:', err);
         return { mode: 'sound', devMode: false };
     }
 }

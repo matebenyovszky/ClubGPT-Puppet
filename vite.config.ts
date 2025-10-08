@@ -610,7 +610,7 @@ function realtimeEphemeralSessionPlugin() {
 
           const config = {
             mode,
-            devMode: pick('DEV_MODE') != null ? bool(pick('DEV_MODE')) : (mode === 'dev'),
+            devMode: pick('DEV_MODE') != null ? bool(pick('DEV_MODE')) : false,
             memoryEnabled: pick('MEMORY_ENABLED') != null ? bool(pick('MEMORY_ENABLED')) : undefined,
             lipsync: pick('LIPSYNC_ENABLED') != null ? bool(pick('LIPSYNC_ENABLED')) : undefined,
             themeName: str(pick('THEME_NAME')),
@@ -621,8 +621,12 @@ function realtimeEphemeralSessionPlugin() {
             realtimeVoice: str(pick('REALTIME_VOICE')),
             // Accept multiple variants for convenience
             webMode: (pick('WEB_MODE') != null ? bool(pick('WEB_MODE')) : undefined) ?? (pick('WEB') != null ? bool(pick('WEB')) : undefined),
-            web3FormsKey: str(pick('WEB3FORMS_KEY')) ?? str(pick('WEB3FORMS.ACCESS_KEY')) ?? str(pick('WEB3FORMS_KEY_PUBLIC')),
+            web3FormsKey: str(pick('WEB3FORMS_KEY')) ?? str(pick('WEBFORMS_KEY')) ?? str(pick('WEB3FORMS.ACCESS_KEY')) ?? str(pick('WEB3FORMS_KEY_PUBLIC')),
           };
+          console.log('[vite.config /api/config] Config built:', {
+            ...config,
+            web3FormsKey: config.web3FormsKey ? '***' + config.web3FormsKey.slice(-4) : 'MISSING'
+          });
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify(config));
         } catch (err: any) {

@@ -1,9 +1,13 @@
 // Simple contact/waitlist widget using Web3Forms
 export function initContactWidget(web3FormsKey: string) {
+    console.log('[contactWidget] initContactWidget called with key:', web3FormsKey ? '***' + web3FormsKey.slice(-4) : 'EMPTY');
+    
     if (!web3FormsKey) {
         console.warn('[contactWidget] No Web3Forms key provided');
         return;
     }
+    
+    console.log('[contactWidget] Creating contact widget UI...');
 
     // Create container for buttons to keep them centered together
     const buttonContainer = document.createElement('div');
@@ -88,6 +92,13 @@ export function initContactWidget(web3FormsKey: string) {
     buttonContainer.appendChild(watchBtn);
     buttonContainer.appendChild(btn);
     document.body.appendChild(buttonContainer);
+    
+    console.log('[contactWidget] Buttons added to DOM:', {
+        containerId: buttonContainer.id,
+        watchBtnId: watchBtn.id,
+        btnId: btn.id,
+        containerVisible: buttonContainer.style.display !== 'none'
+    });
 
     btn.addEventListener('mouseenter', () => {
         btn.style.transform = 'translateY(-2px)';

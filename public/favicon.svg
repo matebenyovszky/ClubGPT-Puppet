@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Dark background -->
+  <rect width="64" height="64" fill="#000c12"/>
+  
+  <!-- Glowing strings -->
+  <defs>
+    <linearGradient id="stringGlow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#00e5ff;stop-opacity:0.8"/>
+      <stop offset="100%" style="stop-color:#00bcd4;stop-opacity:0.4"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="0.8" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Rotated controller group (30 degrees for better X visibility) -->
+  <g transform="translate(32, 17) rotate(30) translate(-32, -17)">
+    <!-- Wooden cross controller - horizontal bar -->
+    <rect x="14" y="15.5" width="36" height="3" rx="1.5" fill="#0db1c4" opacity="0.9"/>
+    <rect x="14" y="15.5" width="36" height="1.5" rx="0.75" fill="#28d7e5"/>
+    
+    <!-- Wooden cross controller - vertical bar -->
+    <rect x="30.5" y="7" width="3" height="21" rx="1.5" fill="#0db1c4" opacity="0.9"/>
+    <rect x="30.5" y="7" width="3" height="10.5" rx="1.5" fill="#28d7e5"/>
+    
+    <!-- Highlight on vertical bar for depth -->
+    <line x1="31" y1="8" x2="31" y2="18" stroke="#00e5ff" stroke-width="0.5" opacity="0.4"/>
+  </g>
+  
+  <!-- Control strings (4 strings from controller to bottom) - connected to rotated X -->
+  <line x1="17" y1="24" x2="14" y2="54" stroke="url(#stringGlow)" stroke-width="0.8" opacity="0.7" filter="url(#glow)"/>
+  <line x1="26" y1="20" x2="24" y2="54" stroke="url(#stringGlow)" stroke-width="0.8" opacity="0.7" filter="url(#glow)"/>
+  <line x1="38" y1="20" x2="40" y2="54" stroke="url(#stringGlow)" stroke-width="0.8" opacity="0.7" filter="url(#glow)"/>
+  <line x1="47" y1="24" x2="50" y2="54" stroke="url(#stringGlow)" stroke-width="0.8" opacity="0.7" filter="url(#glow)"/>
+  
+  <!-- Decorative nodes at string attachment points on controller (after rotation) -->
+  <circle cx="17" cy="24" r="1.5" fill="#00e5ff" filter="url(#glow)"/>
+  <circle cx="26" cy="20" r="1.5" fill="#00e5ff" filter="url(#glow)"/>
+  <circle cx="38" cy="20" r="1.5" fill="#00e5ff" filter="url(#glow)"/>
+  <circle cx="47" cy="24" r="1.5" fill="#00e5ff" filter="url(#glow)"/>
+  
+  <!-- Small decorative dots at string endpoints (puppet connection points) -->
+  <circle cx="14" cy="54" r="1.2" fill="#00e5ff" opacity="0.6"/>
+  <circle cx="24" cy="54" r="1.2" fill="#00e5ff" opacity="0.6"/>
+  <circle cx="40" cy="54" r="1.2" fill="#00e5ff" opacity="0.6"/>
+  <circle cx="50" cy="54" r="1.2" fill="#00e5ff" opacity="0.6"/>
+  
+  <!-- Ambient glow effect around controller -->
+  <circle cx="32" cy="18" r="18" fill="none" stroke="#00e5ff" stroke-width="0.5" opacity="0.08"/>
+  <circle cx="32" cy="18" r="14" fill="none" stroke="#28d7e5" stroke-width="0.5" opacity="0.12"/>
+</svg>
+

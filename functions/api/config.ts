@@ -49,7 +49,7 @@ export async function onRequestGet(context: { request: Request; env: Record<stri
 
     // Flags
     const memoryEnabled = e.MEMORY_ENABLED != null ? bool(e.MEMORY_ENABLED, true) : undefined;
-    const devMode = e.DEV_MODE != null ? bool(e.DEV_MODE, false) : (mode === 'dev');
+    const devMode = e.DEV_MODE != null ? bool(e.DEV_MODE, false) : false;
     const lipsync = e.LIPSYNC_ENABLED != null ? bool(e.LIPSYNC_ENABLED, false) : undefined;
 
     // Optional model/voice overrides for Realtime; client may ignore
@@ -58,7 +58,8 @@ export async function onRequestGet(context: { request: Request; env: Record<stri
 
     // Web mode and contact widget configuration
     const webMode = e.WEB_MODE != null ? bool(e.WEB_MODE, false) : undefined;
-    const web3FormsKey = str(e.WEBFORMS_KEY, undefined);
+    // Support both WEBFORMS_KEY and WEB3FORMS_KEY for backwards compatibility
+    const web3FormsKey = str(e.WEB3FORMS_KEY || e.WEBFORMS_KEY, undefined);
 
     const config = {
       mode,            // 'sound' | 'text' | 'dev'
@@ -74,6 +75,16 @@ export async function onRequestGet(context: { request: Request; env: Record<stri
       webMode,         // boolean | undefined
       web3FormsKey,    // string | undefined
     };
+
+    console.log('[Cloudflare /api/config] Config built:', {
+      ...config,
+      web3FormsKey: config.web3FormsKey ? '***' + config.web3FormsKey.slice(-4) : 'MISSING',
+      rawEnvKeys: {
+        WEB_MODE: e.WEB_MODE,
+        WEB3FORMS_KEY: e.WEB3FORMS_KEY ? '***' + e.WEB3FORMS_KEY.slice(-4) : undefined,
+        WEBFORMS_KEY: e.WEBFORMS_KEY ? '***' + e.WEBFORMS_KEY.slice(-4) : undefined
+      }
+    });
 
     return Response.json(config);
   } catch (err: any) {
