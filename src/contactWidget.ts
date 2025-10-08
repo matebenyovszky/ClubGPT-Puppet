@@ -5,16 +5,72 @@ export function initContactWidget(web3FormsKey: string) {
         return;
     }
 
+    // Create container for buttons to keep them centered together
+    const buttonContainer = document.createElement('div');
+    buttonContainer.id = 'contact-buttons-container';
+    buttonContainer.style.position = 'fixed';
+    buttonContainer.style.top = '50%';
+    buttonContainer.style.left = '50%';
+    buttonContainer.style.transform = 'translate(-50%, -50%)';
+    buttonContainer.style.zIndex = '10002';
+    buttonContainer.style.display = 'flex';
+    buttonContainer.style.flexDirection = 'column';
+    buttonContainer.style.gap = '16px';
+    buttonContainer.style.alignItems = 'center';
+    buttonContainer.style.pointerEvents = 'none'; // Allow clicks to pass through to buttons
+
+    // Create headline text
+    const headline = document.createElement('div');
+    headline.style.color = '#fff';
+    headline.style.fontFamily = 'system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, sans-serif';
+    headline.style.fontSize = '20px';
+    headline.style.fontWeight = '600';
+    headline.style.textAlign = 'center';
+    headline.style.maxWidth = '600px';
+    headline.style.lineHeight = '1.5';
+    headline.style.marginBottom = '8px';
+    headline.style.textShadow = '0 2px 10px rgba(0, 0, 0, 0.5)';
+    headline.innerHTML = 'Do you want an online representative,<br>a charming character for your AI agent<br>with 3D interactive companion?';
+    buttonContainer.appendChild(headline);
+
+    // Create "Watch in action" button
+    const watchBtn = document.createElement('button');
+    watchBtn.id = 'watch-action-btn';
+    watchBtn.textContent = '🎬 Watch in action';
+    watchBtn.style.padding = '12px 24px';
+    watchBtn.style.background = 'linear-gradient(135deg, #cc3333 0%, #aa2222 100%)';
+    watchBtn.style.color = '#fff';
+    watchBtn.style.border = 'none';
+    watchBtn.style.borderRadius = '25px';
+    watchBtn.style.fontFamily = 'system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, sans-serif';
+    watchBtn.style.fontSize = '14px';
+    watchBtn.style.fontWeight = '600';
+    watchBtn.style.cursor = 'pointer';
+    watchBtn.style.boxShadow = '0 4px 15px rgba(204, 51, 51, 0.4)';
+    watchBtn.style.transition = 'all 0.3s ease';
+    watchBtn.style.pointerEvents = 'auto';
+
+    watchBtn.addEventListener('mouseenter', () => {
+        watchBtn.style.transform = 'translateY(-2px)';
+        watchBtn.style.boxShadow = '0 6px 20px rgba(204, 51, 51, 0.6)';
+    });
+
+    watchBtn.addEventListener('mouseleave', () => {
+        watchBtn.style.transform = 'translateY(0)';
+        watchBtn.style.boxShadow = '0 4px 15px rgba(204, 51, 51, 0.4)';
+    });
+
+    // Open video in new window/tab
+    watchBtn.addEventListener('click', () => {
+        // Replace with your actual video URL
+        const videoUrl = 'https://example.com/watch-video';
+        window.open(videoUrl, '_blank', 'noopener,noreferrer');
+    });
+
     // Create floating contact button
     const btn = document.createElement('button');
     btn.id = 'contact-widget-btn';
     btn.textContent = '✉️ Contact / Waitlist';
-    btn.style.position = 'fixed';
-    // Center vertically and horizontally
-    btn.style.top = '50%';
-    btn.style.left = '50%';
-    btn.style.transform = 'translate(-50%, -50%)';
-    btn.style.zIndex = '10002';
     btn.style.padding = '12px 24px';
     btn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
     btn.style.color = '#fff';
@@ -28,17 +84,20 @@ export function initContactWidget(web3FormsKey: string) {
     btn.style.transition = 'all 0.3s ease';
     btn.style.pointerEvents = 'auto';
 
+    // Add both buttons to container
+    buttonContainer.appendChild(watchBtn);
+    buttonContainer.appendChild(btn);
+    document.body.appendChild(buttonContainer);
+
     btn.addEventListener('mouseenter', () => {
-        btn.style.transform = 'translateX(-50%) translateY(-2px)';
+        btn.style.transform = 'translateY(-2px)';
         btn.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.6)';
     });
 
     btn.addEventListener('mouseleave', () => {
-        btn.style.transform = 'translateX(-50%)';
+        btn.style.transform = 'translateY(0)';
         btn.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.4)';
     });
-
-    document.body.appendChild(btn);
 
     // Create modal
     const createModal = () => {
@@ -231,6 +290,7 @@ export function initContactWidget(web3FormsKey: string) {
                     emailInput.value = '';
                     setTimeout(() => {
                         overlay.style.display = 'none';
+                        buttonContainer.style.display = 'flex';
                         submitBtn.disabled = false;
                         submitBtn.textContent = 'Join Waitlist';
                         statusMsg.style.display = 'none';
@@ -254,13 +314,13 @@ export function initContactWidget(web3FormsKey: string) {
         document.body.appendChild(overlay);
 
         // Close handlers
-        close.addEventListener('click', () => { overlay.style.display = 'none'; btn.style.display = ''; });
+        close.addEventListener('click', () => { overlay.style.display = 'none'; buttonContainer.style.display = 'flex'; });
         overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) { overlay.style.display = 'none'; btn.style.display = ''; }
+            if (e.target === overlay) { overlay.style.display = 'none'; buttonContainer.style.display = 'flex'; }
         });
         try {
             window.addEventListener('keydown', (e: any) => {
-                if (e.key === 'Escape' && overlay.style.display !== 'none') { overlay.style.display = 'none'; btn.style.display = ''; }
+                if (e.key === 'Escape' && overlay.style.display !== 'none') { overlay.style.display = 'none'; buttonContainer.style.display = 'flex'; }
             });
         } catch {}
 
@@ -274,7 +334,7 @@ export function initContactWidget(web3FormsKey: string) {
             modal = createModal();
         }
         modal.style.display = 'flex';
-        btn.style.display = 'none';
+        buttonContainer.style.display = 'none';
     });
 }
 
