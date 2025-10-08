@@ -5,6 +5,7 @@ compatibility_date = "2024-01-01"
 [pages]
 # Enable Node.js runtime for API routes
 runtime = "nodejs"
+pages_build_output_dir = "dist"
 
 # Build configuration
 [build]

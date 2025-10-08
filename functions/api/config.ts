@@ -56,6 +56,10 @@ export async function onRequestGet(context: { request: Request; env: Record<stri
     const realtimeModel = str(e.REALTIME_MODEL, undefined);
     const realtimeVoice = str(e.REALTIME_VOICE, undefined);
 
+    // Web mode and contact widget configuration
+    const webMode = e.WEB_MODE != null ? bool(e.WEB_MODE, false) : undefined;
+    const web3FormsKey = str(e.WEBFORMS_KEY, undefined);
+
     const config = {
       mode,            // 'sound' | 'text' | 'dev'
       devMode,         // boolean
@@ -67,6 +71,8 @@ export async function onRequestGet(context: { request: Request; env: Record<stri
       theme,           // Partial theme
       realtimeModel,
       realtimeVoice,
+      webMode,         // boolean | undefined
+      web3FormsKey,    // string | undefined
     };
 
     return Response.json(config);
