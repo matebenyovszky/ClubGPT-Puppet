@@ -127,6 +127,7 @@ function ensureDebugOverlay(): HTMLElement {
         root.style.position = 'fixed';
         root.style.right = '8px';
         root.style.bottom = '8px';
+        root.style.left = '8px'; // Prevent overflow on mobile
         root.style.zIndex = '9999';
         root.style.background = 'rgba(0,0,0,0.55)';
         root.style.color = '#fff';
@@ -135,10 +136,13 @@ function ensureDebugOverlay(): HTMLElement {
         root.style.lineHeight = '1.35';
         root.style.padding = '8px 10px';
         root.style.borderRadius = '8px';
-        root.style.maxWidth = '75vh';
+        root.style.maxWidth = 'calc(100vw - 16px)'; // Never wider than viewport
         root.style.maxHeight = '40vh';
         root.style.overflow = 'auto';
         root.style.whiteSpace = 'pre-wrap';
+        root.style.wordBreak = 'break-word'; // Break long words on mobile
+        root.style.overflowWrap = 'break-word'; // Break long text
+        root.style.boxSizing = 'border-box'; // Include padding in width calculation
         root.style.pointerEvents = 'auto';
         const bar = document.createElement('div');
         bar.id = 'realtimeDebugMic';

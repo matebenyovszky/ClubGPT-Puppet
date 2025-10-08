@@ -174,16 +174,21 @@ class App {
         // Touch refs for TS so strict unused checks don't explode in prod
         try { console.debug('App refs ready', { backdrop: !!this.backdrop, avatarRoot: !!this.avatarContainer }); } catch {}
         // Auto-start realtime voice session (no UI button needed)
-        try {
-            const dev = !!(this.config?.devMode);
-            setRealtimeDebug(dev);
-            // Set realtime mode (audio vs text)
-            setRealtimeMode(this.config?.mode || 'sound');
+        // Skip AI initialization in web mode
+        if (!this.config?.webMode) {
+            try {
+                const dev = !!(this.config?.devMode);
+                setRealtimeDebug(dev);
+                // Set realtime mode (audio vs text)
+                setRealtimeMode(this.config?.mode || 'sound');
 
-            // Start session immediately
-            await startRealtime({ debug: dev, vadLevelThreshold: 0.06, enableLipSync: !!this.config?.lipsync });
-        } catch (err) {
-            console.warn("Realtime startup failed:", err);
+                // Start session immediately
+                await startRealtime({ debug: dev, vadLevelThreshold: 0.06, enableLipSync: !!this.config?.lipsync });
+            } catch (err) {
+                console.warn("Realtime startup failed:", err);
+            }
+        } else {
+            console.log('[App] Web mode enabled - AI features disabled, no realtime session started');
         }
 
         // Initialize contact/waitlist widget if web mode is enabled

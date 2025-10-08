@@ -53,7 +53,7 @@ const videoUrl = 'https://example.com/watch-video';
 Replace with your actual video URL (YouTube, Vimeo, etc.):
 
 ```typescript
-const videoUrl = 'https://www.youtube.com/watch?v=your-video-id';
+const videoUrl = 'https://www.youtube.com/playlist?list=PLAKNcEe8hRMllqKaLAeT6KAO-U4WntnCR';
 ```
 
 ## How It Works

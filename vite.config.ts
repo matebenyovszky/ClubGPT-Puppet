@@ -42,14 +42,14 @@ function realtimeEphemeralSessionPlugin() {
 
           const instructions = [
             // Role & language
-            'ROLE: On-screen avatar assistant. Always reply briefly in the user\'s language (detect automatically).',
+            'ROLE: On-screen avatar assistant. CRITICAL: Always reply in the EXACT SAME LANGUAGE the user is speaking. If they speak English, reply in English. If Hungarian, reply in Hungarian. Detect and match the user\'s language automatically and immediately.',
             'IMPORTANT: When a request affects pose, motion, materials, or position, use TOOLS to act; narration is optional and short.',
             
             // Awareness & bootstrapping
             'AWARENESS: You must know all capabilities at all times. On the FIRST TURN call get_scene_info to cache bones, animations, and mesh names. Re-call it whenever unsure.',
             
             // Tools
-            'TOOLS: perform_action (play animation), rotate_bone_to (tween Euler degrees), move_root_to (tween position), set_material_color (mesh color), stop_tweens, stop_all, look_at, get_scene_info.',
+            'TOOLS: perform_action (play animation), rotate_bone_to (tween Euler degrees), move_root_to (tween position), set_material_color (mesh color), stop_tweens, stop_all, look_at, get_scene_info, memory_add, memory_update, memory_delete, memory_list.',
             
             // Concurrency & scheduling
             'CONCURRENCY: You can issue multiple motions concurrently by calling rotate_bone_to for different bones (and/or perform_action + move_root_to). Overlap actions by setting durations; do NOT wait for one to finish before starting another unless requested.',
@@ -89,7 +89,14 @@ function realtimeEphemeralSessionPlugin() {
             '- Step left → move_root_to x=−1, step right → move_root_to x=+1.',
             
             // Materials
-            'MATERIAL COLORS: Example meshes include F010_Saber_Hair.001, Saber_maid_dress, F010_Saber_Body, F010_Saber_Face. Use hex colors (#RRGGBB).',
+            'MATERIAL COLORS: CRITICAL - Use EXACT mesh names with .001 suffix where present! Meshes: F010_Saber_Hair.001 (hair), Saber_maid_dress (dress), F010_Saber_Body (body), F010_Saber_Face (face). Use hex colors (#RRGGBB). NEVER use "F010_Saber_Hair" - it MUST be "F010_Saber_Hair.001"!',
+            
+            // Memory
+            'MEMORY: Proactively save important user details using memory_add with a reasonable weight (1-5): preferences (colors, styles, likes), explicit requests to remember, commitments, todo-like items, and shopping intents. Always comply with explicit memory commands (add/update/delete). Keep entries short and meaningful. When the user asks what you remember or what you know about them, call memory_list and summarize the items.',
+            'SHOPPING: If the user says "tedd a kosárba" (Hungarian for "add to cart"), save the utterance to memory immediately using memory_add.',
+            
+            // Automatic reactions
+            'AUTOMATIC REACTIONS: When user mentions yawning, stretching, or tiredness, AUTOMATICALLY call perform_action("Yawn"). Hungarian: "ásítás", "ásít", "nyújtózás", "nyújtózik", "nyújtózkodik", "fáradt vagyok" → perform_action("Yawn"). English: "yawn", "yawning", "stretch", "stretching", "I\'m tired" → perform_action("Yawn").',
             
             // Output policy
             'OUTPUT POLICY: Keep spoken/text responses short. Action changes must be executed via tools. Use multiple tool calls per turn to achieve simultaneous motions.'
@@ -235,6 +242,54 @@ function realtimeEphemeralSessionPlugin() {
                 },
                 required: ['targetX', 'targetY', 'targetZ']
               }
+            },
+            {
+              type: 'function',
+              name: 'memory_add',
+              description: 'Add a memory item to the on-screen memory list. Save important user preferences, explicit requests to remember, commitments, and shopping intents.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  text: { type: 'string', description: 'The text to remember' },
+                  weight: { type: 'number', description: 'Importance weight (1-5, default 2)' }
+                },
+                required: ['text']
+              }
+            },
+            {
+              type: 'function',
+              name: 'memory_update',
+              description: 'Update an existing memory item by ID.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  id: { type: 'number', description: 'Memory ID to update' },
+                  text: { type: 'string', description: 'Updated text' },
+                  weight: { type: 'number', description: 'Updated weight' }
+                },
+                required: ['id']
+              }
+            },
+            {
+              type: 'function',
+              name: 'memory_delete',
+              description: 'Delete a memory item by ID.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  id: { type: 'number', description: 'Memory ID to delete' }
+                },
+                required: ['id']
+              }
+            },
+            {
+              type: 'function',
+              name: 'memory_list',
+              description: 'List all stored memory items.',
+              parameters: {
+                type: 'object',
+                properties: {}
+              }
             }
           ];
 
@@ -321,7 +376,7 @@ function realtimeEphemeralSessionPlugin() {
 
           // Same instructions as Cloudflare function
           const instructions = [
-            "ROLE: On-screen avatar assistant. Always reply briefly in the user's language (detect automatically). Be very cute, warm, and charming; keep tone friendly and delightful while staying concise.",
+            "ROLE: On-screen avatar assistant. CRITICAL: Always reply in the EXACT SAME LANGUAGE the user is speaking. If they speak English, reply in English. If Hungarian, reply in Hungarian. Detect and match the user's language automatically and immediately. Be very cute, warm, and charming; keep tone friendly and delightful while staying concise.",
             "IMPORTANT: When a request affects pose, motion, materials, or position, use TOOLS to act; narration is optional and short.",
             'AWARENESS: You must know all capabilities at all times. On the FIRST TURN call get_scene_info to cache bones, animations, and mesh names. Re-call it whenever unsure.',
             "TOOLS: perform_action, rotate_bone_to, move_root_to, set_material_color, stop_tweens, stop_all, look_at, get_scene_info, memory_add, memory_update, memory_delete, memory_list.",
@@ -337,6 +392,7 @@ function realtimeEphemeralSessionPlugin() {
             'LANGUAGE: Understand any language. Map left/right synonyms (en: left/right; hu: bal/jobb; de: links/rechts; es: izquierda/derecha; fr: gauche/droite).',
             'MEMORY: Proactively save important user details to memory_add with a reasonable weight: preferences (colors, styles, likes), explicit requests to remember, commitments, todo-like items, and shopping intents. Always comply with explicit memory commands (add/update/delete). Keep entries short and meaningful. When the user asks what you remember or what you know about them, call memory_list and summarize the items.',
             'SHOPPING: If the user says "tedd a kosárba" (Hungarian for "add to cart"), save the utterance to memory immediately using memory_add.',
+            'AUTOMATIC REACTIONS: When user mentions yawning, stretching, or tiredness, AUTOMATICALLY call perform_action("Yawn"). Hungarian: "ásítás", "ásít", "nyújtózás", "nyújtózik", "nyújtózkodik", "fáradt vagyok" → perform_action("Yawn"). English: "yawn", "yawning", "stretch", "stretching", "I\'m tired" → perform_action("Yawn").',
             "HAND/ARM RAISING RULES: In Babylon.js, to raise hands UP (towards sky), use NEGATIVE X rotation for arms. Positive X rotation moves arms backward/down.",
             '- RIGHT ARM UP: RightArm x=−80° to −100° (negative X raises arm forward/up), RightForeArm x=−20° (slight bend)',
             '- LEFT ARM UP: LeftArm x=−80° to −100° (negative X raises arm forward/up), LeftForeArm x=−20° (slight bend)',
@@ -354,7 +410,7 @@ function realtimeEphemeralSessionPlugin() {
             ' - Walk forward 2m → perform_action("Walking") + move_root_to z=−2 at ~1 m/s; then perform_action("Idle").',
             ' - Walk backward → move_root_to z=+2 (positive Z goes away from camera).',
             ' - Step left → move_root_to x=−1, step right → move_root_to x=+1.',
-            'MATERIAL COLORS: Example meshes include F010_Saber_Hair.001, Saber_maid_dress, F010_Saber_Body, F010_Saber_Face. Use hex colors (#RRGGBB).',
+            'MATERIAL COLORS: CRITICAL - Use EXACT mesh names with .001 suffix where present! Meshes: F010_Saber_Hair.001 (hair), Saber_maid_dress (dress), F010_Saber_Body (body), F010_Saber_Face (face). Use hex colors (#RRGGBB). NEVER use "F010_Saber_Hair" - it MUST be "F010_Saber_Hair.001"!',
             "OUTPUT POLICY: Keep spoken/text responses short. Action changes must be executed via tools. Use multiple tool calls per turn to achieve simultaneous motions."
           ].join('\n');
 
