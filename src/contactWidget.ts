@@ -67,7 +67,7 @@ export function initContactWidget(web3FormsKey: string) {
     // Open video in new window/tab
     watchBtn.addEventListener('click', () => {
         // Replace with your actual video URL
-        const videoUrl = 'https://example.com/watch-video';
+        const videoUrl = 'https://www.youtube.com/playlist?list=PLAKNcEe8hRMllqKaLAeT6KAO-U4WntnCR';
         window.open(videoUrl, '_blank', 'noopener,noreferrer');
     });
 
