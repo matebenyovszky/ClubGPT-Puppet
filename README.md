@@ -1,3 +1,5 @@
+Update 2026.01.11.: I open source this, but I do not plan to continue (I have a new version on a totally different architecture). [Sample videos](https://www.youtube.com/playlist?list=PLAKNcEe8hRMllqKaLAeT6KAO-U4WntnCR)
+
 # Puppet - AI‑Driven Avatar Project
 
 ## 1. Goal
