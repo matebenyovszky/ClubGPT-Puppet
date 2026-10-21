@@ -1,3 +1,11 @@
+# Historical glTF avatar reference
+
+This directory preserves the upstream avatar source, model assets, and documentation for reference. It is not an independently supported application or build target in ClubGPT-Puppet. The obsolete npm/Webpack toolchain and prebuilt Three.js r87 demo bundles have been retired because they contain known vulnerabilities; the historical HTML examples no longer load those bundles.
+
+The maintained application uses Babylon.js through the repository root's `package.json`, `src/`, and `public/` directories. Run `npm ci` and `npm run build` from the repository root. The reference files here are not included in that production build. Do not reinstall the old example dependencies to run this archive; a standalone viewer would require a separate migration and security review.
+
+The upstream `LICENSE` and `licenses/` notices are retained. The remainder of this document is the original upstream reference documentation.
+
 # gltf-avatar-threejs loader, viewer, exporter
 
 ### [Live Demo](https://shrekshao.github.io/gltf-avatar-threejs/)
